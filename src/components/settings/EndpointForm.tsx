@@ -13,20 +13,30 @@ export function EndpointForm() {
   const [error, setError] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<'success' | 'error' | null>(null);
 
+  const [testError, setTestError] = useState<string | null>(null);
+
   const handleTest = async () => {
     if (!baseUrl) return;
 
     setTestResult(null);
+    setTestError(null);
     try {
-      const headers: HeadersInit = { 'Content-Type': 'application/json' };
-      if (apiKey) {
-        headers['Authorization'] = `Bearer ${apiKey}`;
-      }
+      const response = await fetch('/api/endpoints/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ baseUrl, apiKey: apiKey || null }),
+      });
 
-      const response = await fetch(`${baseUrl}/models`, { headers });
-      setTestResult(response.ok ? 'success' : 'error');
+      const data = await response.json();
+      if (data.success) {
+        setTestResult('success');
+      } else {
+        setTestResult('error');
+        setTestError(data.error || 'Connection failed');
+      }
     } catch {
       setTestResult('error');
+      setTestError('Failed to test connection');
     }
   };
 
@@ -103,6 +113,7 @@ export function EndpointForm() {
             onChange={(e) => {
               setBaseUrl(e.target.value);
               setTestResult(null);
+              setTestError(null);
             }}
             placeholder="http://localhost:8080/v1"
             required
@@ -125,7 +136,7 @@ export function EndpointForm() {
           >
             {testResult === 'success'
               ? 'Connection successful'
-              : 'Connection failed'}
+              : testError || 'Connection failed'}
           </p>
         )}
       </div>

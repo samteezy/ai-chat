@@ -13,7 +13,9 @@ export interface ModelsResponse {
 }
 
 export async function fetchModels(endpoint: Endpoint): Promise<Model[]> {
-  const url = `${endpoint.baseUrl}/models`;
+  // Normalize baseUrl by removing trailing slash
+  const baseUrl = endpoint.baseUrl.replace(/\/+$/, '');
+  const url = `${baseUrl}/models`;
 
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
@@ -26,7 +28,8 @@ export async function fetchModels(endpoint: Endpoint): Promise<Model[]> {
   const response = await fetch(url, { headers });
 
   if (!response.ok) {
-    throw new Error(`Failed to fetch models: ${response.statusText}`);
+    const text = await response.text().catch(() => '');
+    throw new Error(`Failed to fetch models from ${url}: ${response.status} ${response.statusText}${text ? ` - ${text}` : ''}`);
   }
 
   const data: ModelsResponse = await response.json();

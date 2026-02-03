@@ -33,9 +33,10 @@ export async function GET(req: Request) {
 
     return NextResponse.json(models);
   } catch (error) {
-    console.error('Failed to fetch models:', error);
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Failed to fetch models:', message);
     return NextResponse.json(
-      { error: 'Failed to fetch models from endpoint' },
+      { error: message },
       { status: 500 }
     );
   }

@@ -1,10 +1,18 @@
-import { streamText } from 'ai';
+import { streamText, type UIMessage } from 'ai';
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { endpoints, chats, messages } from '@/lib/db/schema';
 import { createProvider } from '@/lib/ai/provider';
 import { generateChatId, generateMessageId } from '@/lib/utils/id';
 import { eq } from 'drizzle-orm';
+
+// Extract text content from UIMessage parts
+function getMessageContent(message: UIMessage): string {
+  return message.parts
+    .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
+    .map((part) => part.text)
+    .join('');
+}
 
 export async function POST(req: Request) {
   try {
@@ -43,11 +51,11 @@ export async function POST(req: Request) {
     let chatId = existingChatId;
     if (!chatId) {
       chatId = generateChatId();
-      const firstMessage = chatMessages[0]?.content || 'New Chat';
+      const firstMessageContent = chatMessages[0] ? getMessageContent(chatMessages[0]) : 'New Chat';
       const title =
-        firstMessage.length > 50
-          ? firstMessage.substring(0, 50) + '...'
-          : firstMessage;
+        firstMessageContent.length > 50
+          ? firstMessageContent.substring(0, 50) + '...'
+          : firstMessageContent;
 
       await db.insert(chats).values({
         id: chatId,
@@ -66,14 +74,20 @@ export async function POST(req: Request) {
         id: generateMessageId(),
         chatId,
         role: 'user',
-        content: lastUserMessage.content,
+        content: getMessageContent(lastUserMessage),
         createdAt: now,
       });
     }
 
+    // Convert UIMessage format to standard message format for the AI model
+    const modelMessages = chatMessages.map((msg: UIMessage) => ({
+      role: msg.role,
+      content: getMessageContent(msg),
+    }));
+
     const result = streamText({
       model: provider(model),
-      messages: chatMessages,
+      messages: modelMessages,
       onFinish: async ({ text }) => {
         // Save assistant message on completion
         await db.insert(messages).values({

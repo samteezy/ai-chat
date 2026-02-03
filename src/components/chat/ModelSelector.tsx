@@ -23,8 +23,10 @@ export function ModelSelector({
   const [isLoadingModels, setIsLoadingModels] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const endpointId = selectedEndpoint?.id;
+
   useEffect(() => {
-    if (!selectedEndpoint) {
+    if (!endpointId) {
       setModels([]);
       return;
     }
@@ -34,13 +36,11 @@ export function ModelSelector({
       setError(null);
 
       try {
-        const response = await fetch(
-          `/api/models?endpointId=${selectedEndpoint.id}`
-        );
-        if (!response.ok) {
-          throw new Error('Failed to fetch models');
-        }
+        const response = await fetch(`/api/models?endpointId=${endpointId}`);
         const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to fetch models');
+        }
         setModels(data);
 
         // Auto-select first model if none selected
@@ -48,7 +48,8 @@ export function ModelSelector({
           onModelChange(data[0].id);
         }
       } catch (err) {
-        setError('Failed to load models');
+        console.error('Failed to fetch models:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load models');
         setModels([]);
       } finally {
         setIsLoadingModels(false);
@@ -56,7 +57,9 @@ export function ModelSelector({
     };
 
     fetchModels();
-  }, [selectedEndpoint, selectedModel, onModelChange]);
+    // Only re-fetch when endpoint changes, not when selectedModel changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [endpointId]);
 
   const handleEndpointChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const endpoint = endpoints.find((ep) => ep.id === e.target.value) || null;

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Endpoint } from '@/lib/db/schema';
 import type { Model } from '@/lib/ai/models';
@@ -20,10 +20,7 @@ export function NewChatButton({ endpoints, defaultEndpointId }: NewChatButtonPro
   const [models, setModels] = useState<Model[]>([]);
   const [isLoadingModels, setIsLoadingModels] = useState(false);
 
-  const handleEndpointChange = async (endpointId: string) => {
-    setSelectedEndpoint(endpointId);
-    setSelectedModel('');
-
+  const fetchModelsForEndpoint = useCallback(async (endpointId: string) => {
     if (!endpointId) {
       setModels([]);
       return;
@@ -44,6 +41,20 @@ export function NewChatButton({ endpoints, defaultEndpointId }: NewChatButtonPro
     } finally {
       setIsLoadingModels(false);
     }
+  }, []);
+
+  // Fetch models when popup opens with a default endpoint
+  useEffect(() => {
+    if (isOpen && selectedEndpoint && models.length === 0) {
+      fetchModelsForEndpoint(selectedEndpoint);
+    }
+  }, [isOpen, selectedEndpoint, models.length, fetchModelsForEndpoint]);
+
+  const handleEndpointChange = (endpointId: string) => {
+    setSelectedEndpoint(endpointId);
+    setSelectedModel('');
+    setModels([]);
+    fetchModelsForEndpoint(endpointId);
   };
 
   const handleCreate = () => {
