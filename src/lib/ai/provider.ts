@@ -6,6 +6,7 @@ export function createProvider(endpoint: Endpoint) {
     name: endpoint.name,
     baseURL: endpoint.baseUrl,
     apiKey: endpoint.apiKey || 'not-required',
+    includeUsage: true,
   });
 }
 
