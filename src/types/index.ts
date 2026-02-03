@@ -1,3 +1,5 @@
+import type { UIMessage } from 'ai';
+
 export type { Endpoint, Chat, Message, NewEndpoint, NewChat, NewMessage } from '@/lib/db/schema';
 export type { Model, ModelsResponse } from '@/lib/ai/models';
 
@@ -11,3 +13,14 @@ export interface ApiError {
   error: string;
   details?: string;
 }
+
+export interface MessageMetadata {
+  createdAt?: number;
+  durationMs?: number;
+  inputTokens?: number;
+  outputTokens?: number;
+  endpointName?: string;
+  modelName?: string;
+}
+
+export type ChatUIMessage = UIMessage<MessageMetadata>;

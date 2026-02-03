@@ -1,17 +1,19 @@
 'use client';
 
 import { useChat } from '@ai-sdk/react';
-import { DefaultChatTransport, type UIMessage } from 'ai';
+import { DefaultChatTransport } from 'ai';
 import { useState, useCallback, FormEvent, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
 import { ModelSelector } from './ModelSelector';
 import type { Endpoint } from '@/lib/db/schema';
+import type { ChatUIMessage, MessageMetadata } from '@/types';
 
 type MessagePart =
   | { type: 'text'; text: string }
-  | { type: 'reasoning'; text: string };
+  | { type: 'reasoning'; text: string }
+  | { type: 'metrics'; durationMs?: number; inputTokens?: number; outputTokens?: number; endpointName?: string; modelName?: string };
 
 interface ChatInterfaceProps {
   chatId: string;
@@ -52,16 +54,29 @@ export function ChatInterface({
   const selectedModelRef = useRef(selectedModel);
   selectedModelRef.current = selectedModel;
 
-  // Convert initialMessages to UIMessage format
-  const convertedInitialMessages: UIMessage[] = useMemo(
+  // Convert initialMessages to UIMessage format with metadata
+  const convertedInitialMessages: ChatUIMessage[] = useMemo(
     () =>
-      initialMessages.map((m) => ({
-        id: m.id,
-        role: m.role,
-        parts: m.parts && m.parts.length > 0
-          ? m.parts
-          : [{ type: 'text' as const, text: m.content }],
-      })),
+      initialMessages.map((m) => {
+        const metricsPart = m.parts?.find((p): p is { type: 'metrics'; durationMs?: number; inputTokens?: number; outputTokens?: number; endpointName?: string; modelName?: string } => p.type === 'metrics');
+        const displayParts = m.parts?.filter(p => p.type !== 'metrics') ?? [];
+        const metadata: MessageMetadata | undefined = metricsPart ? {
+          durationMs: metricsPart.durationMs,
+          inputTokens: metricsPart.inputTokens,
+          outputTokens: metricsPart.outputTokens,
+          endpointName: metricsPart.endpointName,
+          modelName: metricsPart.modelName,
+        } : undefined;
+
+        return {
+          id: m.id,
+          role: m.role,
+          parts: displayParts.length > 0
+            ? displayParts.filter((p): p is { type: 'text'; text: string } | { type: 'reasoning'; text: string } => p.type === 'text' || p.type === 'reasoning')
+            : [{ type: 'text' as const, text: m.content }],
+          metadata,
+        };
+      }),
     [initialMessages]
   );
 
@@ -90,7 +105,7 @@ export function ChatInterface({
     []
   );
 
-  const { messages, sendMessage, status, error } = useChat({
+  const { messages, sendMessage, status, error } = useChat<ChatUIMessage>({
     transport,
     messages: convertedInitialMessages,
     onFinish: () => {

@@ -1,5 +1,6 @@
 import { beforeAll, afterAll, afterEach } from 'vitest';
 import '@testing-library/react';
+import '@testing-library/jest-dom/vitest';
 
 beforeAll(() => {
   // Setup before all tests

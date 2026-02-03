@@ -2,10 +2,10 @@
 
 import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
-import type { UIMessage } from 'ai';
+import type { ChatUIMessage } from '@/types';
 
 interface MessageListProps {
-  messages: UIMessage[];
+  messages: ChatUIMessage[];
   isLoading: boolean;
 }
 
@@ -93,6 +93,23 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
                   }
                   return null;
                 })}
+                {message.metadata && (message.metadata.durationMs || message.metadata.inputTokens || message.metadata.outputTokens || message.metadata.endpointName || message.metadata.modelName) && (
+                  <div className="mt-2 text-xs text-gray-400 dark:text-gray-500 flex flex-wrap gap-x-3 gap-y-1">
+                    {(message.metadata.endpointName || message.metadata.modelName) && (
+                      <span>
+                        {message.metadata.endpointName}{message.metadata.endpointName && message.metadata.modelName ? ' / ' : ''}{message.metadata.modelName}
+                      </span>
+                    )}
+                    {message.metadata.durationMs != null && (
+                      <span>{(message.metadata.durationMs / 1000).toFixed(1)}s</span>
+                    )}
+                    {(message.metadata.inputTokens != null || message.metadata.outputTokens != null) && (
+                      <span>
+                        {message.metadata.inputTokens ?? '?'} → {message.metadata.outputTokens ?? '?'} tokens
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>

@@ -90,3 +90,45 @@ The app uses Vercel AI SDK v6 which has significant API changes:
 - Use `sendMessage({ text: '...' })` instead of `handleSubmit()`
 - Check `status` property (`'submitted' | 'streaming' | 'ready' | 'error'`) instead of `isLoading`
 - API route uses `result.toUIMessageStreamResponse()` instead of `result.toDataStreamResponse()`
+
+## Testing
+
+### Test Coverage Goals
+
+The project targets 100% test coverage. All new features must include tests.
+
+### Running Tests
+
+```bash
+npm run test         # Run tests in watch mode
+npm run test:run     # Run tests once (CI mode)
+```
+
+### Test Structure
+
+```
+tests/
+├── helpers/
+│   ├── fixtures/           # Sample data (endpoints, chats, messages)
+│   └── mocks/              # Mock utilities (db, fetch, navigation, ai-sdk)
+├── unit/
+│   ├── components/
+│   │   ├── chat/           # Chat component tests
+│   │   └── settings/       # Settings component tests
+│   └── lib/                # Library function tests
+└── integration/
+    └── api/                # API route tests
+```
+
+### Writing Tests
+
+1. **Components**: Use `@testing-library/react` with `vi.mock()` for dependencies
+2. **API Routes**: Use dynamic imports with mocked database
+3. **Follow existing patterns**: Check similar test files for mock setup
+
+### Test Helpers
+
+Import from `@tests/helpers`:
+
+- **Fixtures**: `mockEndpoint`, `mockChats`, `mockMessages`, `createMockEndpoint()`, etc.
+- **Mocks**: `createMockDb()`, `mockGlobalFetch()`, `mockNextNavigation()`, `createMockUseChat()`

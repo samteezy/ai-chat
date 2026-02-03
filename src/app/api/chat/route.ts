@@ -20,6 +20,8 @@ function getMessageContent(message: UIMessage): string {
 }
 
 export async function POST(req: Request) {
+  const startTime = Date.now();
+
   try {
     const body = await req.json();
     const {
@@ -100,15 +102,26 @@ export async function POST(req: Request) {
     const result = streamText({
       model: wrappedModel,
       messages: modelMessages,
-      onFinish: async ({ text, reasoningText }) => {
+      onFinish: async ({ text, reasoningText, usage }) => {
+        const durationMs = Date.now() - startTime;
+
         // Build parts array for storage
-        const parts: Array<{ type: string; text: string }> = [];
+        const parts: Array<{ type: string; text?: string; durationMs?: number; inputTokens?: number; outputTokens?: number; endpointName?: string; modelName?: string }> = [];
         if (reasoningText) {
           parts.push({ type: 'reasoning', text: reasoningText });
         }
         if (text) {
           parts.push({ type: 'text', text });
         }
+        // Add metrics part for persistence
+        parts.push({
+          type: 'metrics',
+          durationMs,
+          inputTokens: usage?.inputTokens,
+          outputTokens: usage?.outputTokens,
+          endpointName: endpoint.name,
+          modelName: model,
+        });
 
         // Save assistant message on completion
         await db.insert(messages).values({
@@ -136,6 +149,21 @@ export async function POST(req: Request) {
       sendReasoning: true,
       headers: {
         'X-Chat-Id': chatId,
+      },
+      messageMetadata: ({ part }) => {
+        if (part.type === 'start') {
+          return { createdAt: Date.now() };
+        }
+        if (part.type === 'finish') {
+          return {
+            durationMs: Date.now() - startTime,
+            inputTokens: part.totalUsage?.inputTokens,
+            outputTokens: part.totalUsage?.outputTokens,
+            endpointName: endpoint.name,
+            modelName: model,
+          };
+        }
+        return undefined;
       },
     });
   } catch (error) {
