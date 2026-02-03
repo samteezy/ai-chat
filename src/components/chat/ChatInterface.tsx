@@ -45,6 +45,13 @@ export function ChatInterface({
   const chatIdRef = useRef(currentChatId);
   chatIdRef.current = currentChatId;
 
+  // Track endpoint/model with refs so transport body always reads latest values
+  const selectedEndpointRef = useRef(selectedEndpoint);
+  selectedEndpointRef.current = selectedEndpoint;
+
+  const selectedModelRef = useRef(selectedModel);
+  selectedModelRef.current = selectedModel;
+
   // Convert initialMessages to UIMessage format
   const convertedInitialMessages: UIMessage[] = useMemo(
     () =>
@@ -63,10 +70,10 @@ export function ChatInterface({
     () =>
       new DefaultChatTransport({
         api: '/api/chat',
-        // Function is called on each request, reads current ref value
+        // Function is called on each request, reads current ref values
         body: () => ({
-          endpointId: selectedEndpoint?.id,
-          model: selectedModel,
+          endpointId: selectedEndpointRef.current?.id,
+          model: selectedModelRef.current,
           chatId: chatIdRef.current,
         }),
         fetch: async (url, options) => {
@@ -80,7 +87,7 @@ export function ChatInterface({
           return response;
         },
       }),
-    [selectedEndpoint?.id, selectedModel]
+    []
   );
 
   const { messages, sendMessage, status, error } = useChat({

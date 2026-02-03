@@ -120,10 +120,14 @@ export async function POST(req: Request) {
           createdAt: new Date(),
         });
 
-        // Update chat timestamp
+        // Update chat with latest endpoint/model and timestamp
         await db
           .update(chats)
-          .set({ updatedAt: new Date() })
+          .set({
+            endpointId,
+            model,
+            updatedAt: new Date(),
+          })
           .where(eq(chats.id, chatId));
       },
     });
