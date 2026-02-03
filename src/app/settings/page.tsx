@@ -1,8 +1,7 @@
 import Link from 'next/link';
 import { db } from '@/lib/db';
 import { endpoints } from '@/lib/db/schema';
-import { EndpointForm } from '@/components/settings/EndpointForm';
-import { EndpointList } from '@/components/settings/EndpointList';
+import { EndpointSettings } from '@/components/settings/EndpointSettings';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,19 +37,7 @@ export default async function SettingsPage() {
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-8">
-        <section className="mb-8">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-            Add Endpoint
-          </h2>
-          <EndpointForm />
-        </section>
-
-        <section>
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-            Saved Endpoints
-          </h2>
-          <EndpointList endpoints={allEndpoints} />
-        </section>
+        <EndpointSettings endpoints={allEndpoints} />
       </main>
     </div>
   );

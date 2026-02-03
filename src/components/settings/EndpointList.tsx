@@ -6,9 +6,11 @@ import type { Endpoint } from '@/lib/db/schema';
 
 interface EndpointListProps {
   endpoints: Endpoint[];
+  onEdit?: (endpoint: Endpoint) => void;
+  editingEndpointId?: string;
 }
 
-export function EndpointList({ endpoints }: EndpointListProps) {
+export function EndpointList({ endpoints, onEdit, editingEndpointId }: EndpointListProps) {
   const router = useRouter();
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -60,7 +62,11 @@ export function EndpointList({ endpoints }: EndpointListProps) {
       {endpoints.map((endpoint) => (
         <div
           key={endpoint.id}
-          className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4"
+          className={`bg-white dark:bg-gray-800 rounded-lg border p-4 ${
+            editingEndpointId === endpoint.id
+              ? 'border-blue-500 ring-1 ring-blue-500'
+              : 'border-gray-200 dark:border-gray-700'
+          }`}
         >
           <div className="flex items-start justify-between">
             <div className="flex-1">
@@ -93,9 +99,18 @@ export function EndpointList({ endpoints }: EndpointListProps) {
                   Set default
                 </button>
               )}
+              {onEdit && (
+                <button
+                  onClick={() => onEdit(endpoint)}
+                  disabled={editingEndpointId === endpoint.id}
+                  className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 disabled:opacity-50"
+                >
+                  Edit
+                </button>
+              )}
               <button
                 onClick={() => handleDelete(endpoint.id)}
-                disabled={deletingId === endpoint.id}
+                disabled={deletingId === endpoint.id || editingEndpointId === endpoint.id}
                 className="p-2 text-gray-400 hover:text-red-500 disabled:opacity-50"
               >
                 <svg

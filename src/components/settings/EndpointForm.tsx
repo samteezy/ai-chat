@@ -1,9 +1,16 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import type { Endpoint } from '@/lib/db/schema';
 
-export function EndpointForm() {
+interface EndpointFormProps {
+  endpoint?: Endpoint | null;
+  onCancel?: () => void;
+  onSaveComplete?: () => void;
+}
+
+export function EndpointForm({ endpoint, onCancel, onSaveComplete }: EndpointFormProps) {
   const router = useRouter();
   const [name, setName] = useState('');
   const [baseUrl, setBaseUrl] = useState('');
@@ -12,8 +19,29 @@ export function EndpointForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<'success' | 'error' | null>(null);
-
   const [testError, setTestError] = useState<string | null>(null);
+
+  const isEditMode = !!endpoint;
+
+  useEffect(() => {
+    if (endpoint) {
+      setName(endpoint.name);
+      setBaseUrl(endpoint.baseUrl);
+      setApiKey(endpoint.apiKey || '');
+      setIsDefault(endpoint.isDefault || false);
+      setTestResult(null);
+      setTestError(null);
+      setError(null);
+    } else {
+      setName('');
+      setBaseUrl('');
+      setApiKey('');
+      setIsDefault(false);
+      setTestResult(null);
+      setTestError(null);
+      setError(null);
+    }
+  }, [endpoint]);
 
   const handleTest = async () => {
     if (!baseUrl) return;
@@ -47,9 +75,10 @@ export function EndpointForm() {
 
     try {
       const response = await fetch('/api/endpoints', {
-        method: 'POST',
+        method: isEditMode ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          ...(isEditMode && { id: endpoint.id }),
           name,
           baseUrl,
           apiKey: apiKey || null,
@@ -59,7 +88,7 @@ export function EndpointForm() {
 
       if (!response.ok) {
         const data = await response.json();
-        throw new Error(data.error || 'Failed to create endpoint');
+        throw new Error(data.error || `Failed to ${isEditMode ? 'update' : 'create'} endpoint`);
       }
 
       setName('');
@@ -68,6 +97,7 @@ export function EndpointForm() {
       setIsDefault(false);
       setTestResult(null);
       router.refresh();
+      onSaveComplete?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
@@ -176,13 +206,30 @@ export function EndpointForm() {
 
       {error && <p className="text-sm text-red-500">{error}</p>}
 
-      <button
-        type="submit"
-        disabled={isLoading}
-        className="w-full px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 transition-colors"
-      >
-        {isLoading ? 'Adding...' : 'Add Endpoint'}
-      </button>
+      <div className="flex gap-2">
+        {onCancel && (
+          <button
+            type="button"
+            onClick={onCancel}
+            className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+          >
+            Cancel
+          </button>
+        )}
+        <button
+          type="submit"
+          disabled={isLoading}
+          className={`${onCancel ? 'flex-1' : 'w-full'} px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 transition-colors`}
+        >
+          {isLoading
+            ? isEditMode
+              ? 'Updating...'
+              : 'Adding...'
+            : isEditMode
+              ? 'Update Endpoint'
+              : 'Add Endpoint'}
+        </button>
+      </div>
     </form>
   );
 }
