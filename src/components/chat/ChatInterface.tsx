@@ -2,7 +2,7 @@
 
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport, type UIMessage } from 'ai';
-import { useState, useCallback, FormEvent, useMemo } from 'react';
+import { useState, useCallback, FormEvent, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
@@ -36,6 +36,10 @@ export function ChatInterface({
   const [currentChatId, setCurrentChatId] = useState(chatId);
   const [input, setInput] = useState('');
 
+  // Track chat ID with a ref to avoid stale closures in fetch callback
+  const chatIdRef = useRef(currentChatId);
+  chatIdRef.current = currentChatId;
+
   // Convert initialMessages to UIMessage format
   const convertedInitialMessages: UIMessage[] = useMemo(
     () =>
@@ -47,18 +51,29 @@ export function ChatInterface({
     [initialMessages]
   );
 
-  // Create transport with dynamic body
+  // Create transport with dynamic body and header capture
   const transport = useMemo(
     () =>
       new DefaultChatTransport({
         api: '/api/chat',
-        body: {
+        // Function is called on each request, reads current ref value
+        body: () => ({
           endpointId: selectedEndpoint?.id,
           model: selectedModel,
-          chatId: currentChatId,
+          chatId: chatIdRef.current,
+        }),
+        fetch: async (url, options) => {
+          const response = await fetch(url, options);
+          // Capture the chat ID from header when a new chat is created
+          const chatIdHeader = response.headers.get('X-Chat-Id');
+          if (chatIdHeader && !chatIdRef.current) {
+            chatIdRef.current = chatIdHeader;
+            setCurrentChatId(chatIdHeader);
+          }
+          return response;
         },
       }),
-    [selectedEndpoint?.id, selectedModel, currentChatId]
+    [selectedEndpoint?.id, selectedModel]
   );
 
   const { messages, sendMessage, status, error } = useChat({

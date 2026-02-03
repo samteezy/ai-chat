@@ -63,11 +63,13 @@ describe('models utilities', () => {
     it('throws error on failed request', async () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: false,
+        status: 500,
         statusText: 'Internal Server Error',
+        text: () => Promise.resolve(''),
       });
 
       await expect(fetchModels(mockEndpoint)).rejects.toThrow(
-        'Failed to fetch models: Internal Server Error'
+        'Failed to fetch models from http://localhost:8080/v1/models: 500 Internal Server Error'
       );
     });
   });
