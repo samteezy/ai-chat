@@ -1,4 +1,9 @@
-import { streamText, type UIMessage } from 'ai';
+import {
+  streamText,
+  wrapLanguageModel,
+  extractReasoningMiddleware,
+  type UIMessage,
+} from 'ai';
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { endpoints, chats, messages } from '@/lib/db/schema';
@@ -47,6 +52,13 @@ export async function POST(req: Request) {
     const provider = createProvider(endpoint);
     const now = new Date();
 
+    // Wrap the model with reasoning extraction middleware
+    // This extracts <think>...</think> tags into separate reasoning parts
+    const wrappedModel = wrapLanguageModel({
+      model: provider(model),
+      middleware: extractReasoningMiddleware({ tagName: 'think' }),
+    });
+
     // Create or get chat
     let chatId = existingChatId;
     if (!chatId) {
@@ -86,15 +98,25 @@ export async function POST(req: Request) {
     }));
 
     const result = streamText({
-      model: provider(model),
+      model: wrappedModel,
       messages: modelMessages,
-      onFinish: async ({ text }) => {
+      onFinish: async ({ text, reasoningText }) => {
+        // Build parts array for storage
+        const parts: Array<{ type: string; text: string }> = [];
+        if (reasoningText) {
+          parts.push({ type: 'reasoning', text: reasoningText });
+        }
+        if (text) {
+          parts.push({ type: 'text', text });
+        }
+
         // Save assistant message on completion
         await db.insert(messages).values({
           id: generateMessageId(),
           chatId,
           role: 'assistant',
           content: text,
+          parts: parts.length > 0 ? parts : null,
           createdAt: new Date(),
         });
 
@@ -107,6 +129,7 @@ export async function POST(req: Request) {
     });
 
     return result.toUIMessageStreamResponse({
+      sendReasoning: true,
       headers: {
         'X-Chat-Id': chatId,
       },

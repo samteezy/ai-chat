@@ -9,6 +9,10 @@ import { MessageInput } from './MessageInput';
 import { ModelSelector } from './ModelSelector';
 import type { Endpoint } from '@/lib/db/schema';
 
+type MessagePart =
+  | { type: 'text'; text: string }
+  | { type: 'reasoning'; text: string };
+
 interface ChatInterfaceProps {
   chatId: string;
   endpoint: Endpoint | null;
@@ -17,6 +21,7 @@ interface ChatInterfaceProps {
     id: string;
     role: 'user' | 'assistant' | 'system';
     content: string;
+    parts?: MessagePart[] | null;
   }>;
   endpoints: Endpoint[];
 }
@@ -46,7 +51,9 @@ export function ChatInterface({
       initialMessages.map((m) => ({
         id: m.id,
         role: m.role,
-        parts: [{ type: 'text' as const, text: m.content }],
+        parts: m.parts && m.parts.length > 0
+          ? m.parts
+          : [{ type: 'text' as const, text: m.content }],
       })),
     [initialMessages]
   );

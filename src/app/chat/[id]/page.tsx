@@ -102,6 +102,7 @@ export default async function ChatPage({ params }: ChatPageProps) {
             id: m.id,
             role: m.role,
             content: m.content,
+            parts: m.parts as Array<{ type: 'text'; text: string } | { type: 'reasoning'; text: string }> | null,
           }))}
           endpoints={allEndpoints}
         />
