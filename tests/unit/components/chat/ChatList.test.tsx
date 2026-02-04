@@ -186,4 +186,94 @@ describe('ChatList', () => {
       consoleSpy.mockRestore();
     });
   });
+
+  describe('selection functionality', () => {
+    it('shows selected chats with blue background', () => {
+      const selectedIds = new Set(['chat_001', 'chat_002']);
+
+      render(
+        <ChatList
+          chats={mockChats}
+          selectedIds={selectedIds}
+          isSelectionMode={true}
+        />
+      );
+
+      const firstChat = screen.getByText('First Chat').closest('a');
+      const secondChat = screen.getByText('Second Chat').closest('a');
+      const thirdChat = screen.getByText('Third Chat').closest('a');
+
+      expect(firstChat).toHaveClass('bg-blue-100');
+      expect(secondChat).toHaveClass('bg-blue-100');
+      expect(thirdChat).not.toHaveClass('bg-blue-100');
+    });
+
+    it('calls onChatClick when a chat is clicked', () => {
+      const mockOnChatClick = vi.fn();
+
+      render(
+        <ChatList
+          chats={mockChats}
+          onChatClick={mockOnChatClick}
+        />
+      );
+
+      const firstChat = screen.getByText('First Chat').closest('a')!;
+      fireEvent.click(firstChat);
+
+      expect(mockOnChatClick).toHaveBeenCalledWith(expect.any(Object), 'chat_001');
+    });
+
+    it('shows checkbox when in selection mode', () => {
+      render(
+        <ChatList
+          chats={mockChats}
+          isSelectionMode={true}
+        />
+      );
+
+      // Checkboxes should be visible (opacity-100) in selection mode
+      const checkboxContainers = document.querySelectorAll('.opacity-100');
+      expect(checkboxContainers.length).toBeGreaterThan(0);
+    });
+
+    it('hides delete button in selection mode', () => {
+      render(
+        <ChatList
+          chats={mockChats}
+          isSelectionMode={true}
+        />
+      );
+
+      expect(screen.queryByTitle('Delete chat')).not.toBeInTheDocument();
+    });
+
+    it('shows delete button when not in selection mode', () => {
+      render(
+        <ChatList
+          chats={mockChats}
+          isSelectionMode={false}
+        />
+      );
+
+      expect(screen.getAllByTitle('Delete chat').length).toBe(3);
+    });
+
+    it('shows checkmark for selected items', () => {
+      const selectedIds = new Set(['chat_001']);
+
+      render(
+        <ChatList
+          chats={mockChats}
+          selectedIds={selectedIds}
+          isSelectionMode={true}
+        />
+      );
+
+      // Selected chat should have a filled checkbox with checkmark
+      const firstChatLink = screen.getByText('First Chat').closest('a');
+      const checkmark = firstChatLink?.querySelector('svg');
+      expect(checkmark).toBeInTheDocument();
+    });
+  });
 });

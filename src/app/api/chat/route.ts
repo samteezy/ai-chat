@@ -104,7 +104,8 @@ export async function POST(req: Request) {
     // Build the message context for the AI model
     // When parentMessageId is provided, build from database to ensure correct version chain
     // This prevents stale client state from sending wrong message history
-    let modelMessages: Array<{ role: string; content: string }>;
+    type MessageRole = 'user' | 'assistant' | 'system';
+    let modelMessages: Array<{ role: MessageRole; content: string }>;
 
     if (parentMessageId && existingChatId) {
       // Build chain from database using parent message
@@ -118,12 +119,12 @@ export async function POST(req: Request) {
       const conversationChain = buildMessageChain(allMessages, parentMessageId);
       modelMessages = [
         ...conversationChain.map((msg) => ({
-          role: msg.role,
+          role: msg.role as MessageRole,
           content: msg.content,
         })),
         // Add the new user message from the client
         {
-          role: 'user',
+          role: 'user' as const,
           content: chatMessages.length > 0
             ? getMessageContent(chatMessages[chatMessages.length - 1])
             : '',
@@ -132,7 +133,7 @@ export async function POST(req: Request) {
     } else {
       // For new chats or when no parent is specified, use client messages
       modelMessages = chatMessages.map((msg: UIMessage) => ({
-        role: msg.role,
+        role: msg.role as MessageRole,
         content: getMessageContent(msg),
       }));
     }

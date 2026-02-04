@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { chats, messages } from '@/lib/db/schema';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, inArray } from 'drizzle-orm';
 
 export async function GET() {
   try {
@@ -25,7 +25,25 @@ export async function DELETE(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
+    const ids = searchParams.get('ids');
 
+    // Support bulk delete with ?ids=id1,id2,id3
+    if (searchParams.has('ids')) {
+      const idArray = ids ? ids.split(',').filter(Boolean) : [];
+      if (idArray.length === 0) {
+        return NextResponse.json(
+          { error: 'At least one chat ID is required' },
+          { status: 400 }
+        );
+      }
+
+      // Messages are deleted via cascade
+      await db.delete(chats).where(inArray(chats.id, idArray));
+
+      return NextResponse.json({ success: true, deleted: idArray.length });
+    }
+
+    // Single delete with ?id=xxx
     if (!id) {
       return NextResponse.json(
         { error: 'Chat ID is required' },

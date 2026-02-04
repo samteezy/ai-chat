@@ -122,5 +122,61 @@ describe('Chats API', () => {
       expect(response.status).toBe(500);
       expect(data.error).toBe('Failed to delete chat');
     });
+
+    it('bulk deletes multiple chats with ids parameter', async () => {
+      const { db } = await import('@/lib/db');
+      const mockWhere = vi.fn().mockResolvedValue(undefined);
+      vi.mocked(db.delete).mockReturnValue({
+        where: mockWhere,
+      } as any);
+
+      const { DELETE } = await import('@/app/api/chats/route');
+
+      const request = new Request('http://localhost/api/chats?ids=chat_1,chat_2,chat_3', {
+        method: 'DELETE',
+      });
+
+      const response = await DELETE(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.success).toBe(true);
+      expect(data.deleted).toBe(3);
+      expect(db.delete).toHaveBeenCalled();
+      expect(mockWhere).toHaveBeenCalled();
+    });
+
+    it('returns 400 when ids parameter is empty', async () => {
+      const { DELETE } = await import('@/app/api/chats/route');
+
+      const request = new Request('http://localhost/api/chats?ids=', {
+        method: 'DELETE',
+      });
+
+      const response = await DELETE(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(data.error).toBe('At least one chat ID is required');
+    });
+
+    it('returns 500 on bulk delete error', async () => {
+      const { db } = await import('@/lib/db');
+      vi.mocked(db.delete).mockReturnValue({
+        where: vi.fn().mockRejectedValue(new Error('Bulk delete failed')),
+      } as any);
+
+      const { DELETE } = await import('@/app/api/chats/route');
+
+      const request = new Request('http://localhost/api/chats?ids=chat_1,chat_2', {
+        method: 'DELETE',
+      });
+
+      const response = await DELETE(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(500);
+      expect(data.error).toBe('Failed to delete chat');
+    });
   });
 });
