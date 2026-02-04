@@ -127,6 +127,19 @@ export function ChatSidebar({
     [displayedChats, lastSelectedId, isSelectionMode]
   );
 
+  const handleToggleSelect = useCallback((chatId: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(chatId)) {
+        next.delete(chatId);
+      } else {
+        next.add(chatId);
+      }
+      return next;
+    });
+    setLastSelectedId(chatId);
+  }, []);
+
   const clearSelection = useCallback(() => {
     setSelectedIds(new Set());
     setLastSelectedId(null);
@@ -222,6 +235,7 @@ export function ChatSidebar({
           selectedIds={selectedIds}
           isSelectionMode={isSelectionMode}
           onChatClick={handleChatClick}
+          onToggleSelect={handleToggleSelect}
         />
       </div>
 

@@ -10,6 +10,7 @@ interface ChatListProps {
   selectedIds?: Set<string>;
   isSelectionMode?: boolean;
   onChatClick?: (e: React.MouseEvent, chatId: string) => void;
+  onToggleSelect?: (chatId: string) => void;
 }
 
 export function ChatList({
@@ -18,6 +19,7 @@ export function ChatList({
   selectedIds = new Set(),
   isSelectionMode = false,
   onChatClick,
+  onToggleSelect,
 }: ChatListProps) {
   const router = useRouter();
 
@@ -79,7 +81,14 @@ export function ChatList({
           >
             {/* Checkbox - visible on hover or in selection mode */}
             <div
-              className={`mr-2 flex-shrink-0 ${
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (onToggleSelect) {
+                  onToggleSelect(chat.id);
+                }
+              }}
+              className={`mr-2 flex-shrink-0 cursor-pointer ${
                 isSelectionMode || isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
               } transition-opacity`}
             >
@@ -87,7 +96,7 @@ export function ChatList({
                 className={`w-4 h-4 rounded border flex items-center justify-center ${
                   isSelected
                     ? 'bg-blue-500 border-blue-500'
-                    : 'border-gray-400 dark:border-gray-500'
+                    : 'border-gray-400 dark:border-gray-500 hover:border-blue-400'
                 }`}
               >
                 {isSelected && (
