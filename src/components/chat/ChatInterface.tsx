@@ -58,6 +58,11 @@ export function ChatInterface({
   const selectedModelRef = useRef(selectedModel);
   selectedModelRef.current = selectedModel;
 
+  // Track the parent message ID (last message in current chain) for linking new messages
+  const parentMessageIdRef = useRef<string | null>(
+    initialMessages.length > 0 ? initialMessages[initialMessages.length - 1].id : null
+  );
+
   // Convert initialMessages to UIMessage format with metadata and version info
   const convertedInitialMessages: ChatUIMessageWithVersioning[] = useMemo(
     () =>
@@ -95,6 +100,7 @@ export function ChatInterface({
           endpointId: selectedEndpointRef.current?.id,
           model: selectedModelRef.current,
           chatId: chatIdRef.current,
+          parentMessageId: parentMessageIdRef.current,
         }),
         fetch: async (url, options) => {
           const response = await fetch(url, options);
@@ -113,7 +119,45 @@ export function ChatInterface({
   const { messages, setMessages, sendMessage, status, error } = useChat<ChatUIMessageWithVersioning>({
     transport,
     messages: convertedInitialMessages,
-    onFinish: () => {
+    onFinish: async () => {
+      // Refresh messages to get server-assigned IDs and update parent ref
+      if (currentChatId) {
+        try {
+          const response = await fetch(`/api/chats/${currentChatId}`);
+          if (response.ok) {
+            const data = await response.json();
+            const newMessages: ChatUIMessageWithVersioning[] = data.messages.map((m: any) => {
+              const metricsPart = m.parts?.find((p: any) => p.type === 'metrics');
+              const displayParts = m.parts?.filter((p: any) => p.type !== 'metrics') ?? [];
+              const metadata: MessageMetadata | undefined = metricsPart ? {
+                durationMs: metricsPart.durationMs,
+                inputTokens: metricsPart.inputTokens,
+                outputTokens: metricsPart.outputTokens,
+                endpointName: metricsPart.endpointName,
+                modelName: metricsPart.modelName,
+              } : undefined;
+
+              return {
+                id: m.id,
+                role: m.role,
+                parts: displayParts.length > 0
+                  ? displayParts.filter((p: any) => p.type === 'text' || p.type === 'reasoning')
+                  : [{ type: 'text' as const, text: m.content }],
+                metadata,
+                versionInfo: m.versionInfo,
+              };
+            });
+
+            setMessages(newMessages);
+            // Update parent ref to the last message
+            if (newMessages.length > 0) {
+              parentMessageIdRef.current = newMessages[newMessages.length - 1].id;
+            }
+          }
+        } catch (err) {
+          console.error('Failed to refresh messages after send:', err);
+        }
+      }
       // Refresh to update chat list if this was a new chat
       if (!chatId) {
         router.refresh();
@@ -193,6 +237,10 @@ export function ChatInterface({
       });
 
       setMessages(newMessages);
+      // Update parent ref to the last message
+      if (newMessages.length > 0) {
+        parentMessageIdRef.current = newMessages[newMessages.length - 1].id;
+      }
     } catch (err) {
       console.error('Failed to refresh messages:', err);
     }
@@ -309,6 +357,10 @@ export function ChatInterface({
         });
 
         setMessages(newMessages);
+        // Update parent ref to the last message in the new chain
+        if (newMessages.length > 0) {
+          parentMessageIdRef.current = newMessages[newMessages.length - 1].id;
+        }
       } catch (err) {
         console.error('Failed to switch version:', err);
       }
