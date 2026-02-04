@@ -9,7 +9,8 @@ import { db } from '@/lib/db';
 import { endpoints, chats, messages, chatActiveBranch } from '@/lib/db/schema';
 import { createProvider } from '@/lib/ai/provider';
 import { generateChatId, generateMessageId, generateVersionGroupId } from '@/lib/utils/id';
-import { eq } from 'drizzle-orm';
+import { buildMessageChain } from '@/lib/utils/messageTree';
+import { eq, asc } from 'drizzle-orm';
 
 // Extract text content from UIMessage parts
 function getMessageContent(message: UIMessage): string {
@@ -100,11 +101,41 @@ export async function POST(req: Request) {
       });
     }
 
-    // Convert UIMessage format to standard message format for the AI model
-    const modelMessages = chatMessages.map((msg: UIMessage) => ({
-      role: msg.role,
-      content: getMessageContent(msg),
-    }));
+    // Build the message context for the AI model
+    // When parentMessageId is provided, build from database to ensure correct version chain
+    // This prevents stale client state from sending wrong message history
+    let modelMessages: Array<{ role: string; content: string }>;
+
+    if (parentMessageId && existingChatId) {
+      // Build chain from database using parent message
+      const allMessages = await db
+        .select()
+        .from(messages)
+        .where(eq(messages.chatId, existingChatId))
+        .orderBy(asc(messages.createdAt))
+        .all();
+
+      const conversationChain = buildMessageChain(allMessages, parentMessageId);
+      modelMessages = [
+        ...conversationChain.map((msg) => ({
+          role: msg.role,
+          content: msg.content,
+        })),
+        // Add the new user message from the client
+        {
+          role: 'user',
+          content: chatMessages.length > 0
+            ? getMessageContent(chatMessages[chatMessages.length - 1])
+            : '',
+        },
+      ];
+    } else {
+      // For new chats or when no parent is specified, use client messages
+      modelMessages = chatMessages.map((msg: UIMessage) => ({
+        role: msg.role,
+        content: getMessageContent(msg),
+      }));
+    }
 
     const result = streamText({
       model: wrappedModel,
