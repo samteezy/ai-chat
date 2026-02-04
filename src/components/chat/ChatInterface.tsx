@@ -2,14 +2,18 @@
 
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
-import { useState, useCallback, FormEvent, useMemo, useRef } from 'react';
+import { useState, useCallback, FormEvent, useMemo, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
 import { ModelSelector } from './ModelSelector';
 import { EditMessageModal } from './EditMessageModal';
 import type { Endpoint } from '@/lib/db/schema';
-import type { ChatUIMessageWithVersioning, MessageMetadata, VersionInfo } from '@/types';
+import type { ChatUIMessageWithVersioning, MessageMetadata, VersionInfo, MessageStatus } from '@/types';
+
+// Poll interval for checking generating message status
+const STATUS_POLL_INTERVAL_MS = 2000;
+const MAX_POLL_ATTEMPTS = 150; // Max ~5 minutes of polling
 
 type MessagePart =
   | { type: 'text'; text: string }
@@ -46,6 +50,7 @@ export function ChatInterface({
   const [input, setInput] = useState('');
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [regeneratingMessageId, setRegeneratingMessageId] = useState<string | null>(null);
+  const [generatingMessageId, setGeneratingMessageId] = useState<string | null>(null);
 
   // Track chat ID with a ref to avoid stale closures in fetch callback
   const chatIdRef = useRef(currentChatId);
@@ -110,6 +115,11 @@ export function ChatInterface({
             chatIdRef.current = chatIdHeader;
             setCurrentChatId(chatIdHeader);
           }
+          // Capture the message ID for status polling
+          const messageIdHeader = response.headers.get('X-Message-Id');
+          if (messageIdHeader) {
+            setGeneratingMessageId(messageIdHeader);
+          }
           return response;
         },
       }),
@@ -120,6 +130,9 @@ export function ChatInterface({
     transport,
     messages: convertedInitialMessages,
     onFinish: async () => {
+      // Clear the generating message ID since streaming completed normally
+      setGeneratingMessageId(null);
+
       // Refresh messages to get server-assigned IDs and update parent ref
       if (currentChatId) {
         try {
@@ -204,6 +217,88 @@ export function ChatInterface({
     },
     [messages]
   );
+
+  // Poll for message status if it's still generating
+  const pollMessageStatus = useCallback(
+    async (messageId: string): Promise<MessageStatus> => {
+      try {
+        const response = await fetch(`/api/messages/${messageId}/status`);
+        if (!response.ok) return 'failed';
+        const data = await response.json();
+        return data.status as MessageStatus;
+      } catch {
+        return 'failed';
+      }
+    },
+    []
+  );
+
+  // Effect to poll for generating messages and refresh when complete
+  useEffect(() => {
+    if (!generatingMessageId || !currentChatId) return;
+
+    let pollCount = 0;
+    let timeoutId: NodeJS.Timeout;
+
+    const poll = async () => {
+      pollCount++;
+      const status = await pollMessageStatus(generatingMessageId);
+
+      if (status === 'completed' || status === 'failed') {
+        setGeneratingMessageId(null);
+        // Refresh messages to get the completed content
+        try {
+          const response = await fetch(`/api/chats/${currentChatId}`);
+          if (response.ok) {
+            const data = await response.json();
+            const newMessages: ChatUIMessageWithVersioning[] = data.messages.map((m: any) => {
+              const metricsPart = m.parts?.find((p: any) => p.type === 'metrics');
+              const displayParts = m.parts?.filter((p: any) => p.type !== 'metrics') ?? [];
+              const metadata: MessageMetadata | undefined = metricsPart ? {
+                durationMs: metricsPart.durationMs,
+                inputTokens: metricsPart.inputTokens,
+                outputTokens: metricsPart.outputTokens,
+                endpointName: metricsPart.endpointName,
+                modelName: metricsPart.modelName,
+              } : undefined;
+
+              return {
+                id: m.id,
+                role: m.role,
+                parts: displayParts.length > 0
+                  ? displayParts.filter((p: any) => p.type === 'text' || p.type === 'reasoning')
+                  : [{ type: 'text' as const, text: m.content }],
+                metadata,
+                versionInfo: m.versionInfo,
+              };
+            });
+
+            setMessages(newMessages);
+            if (newMessages.length > 0) {
+              parentMessageIdRef.current = newMessages[newMessages.length - 1].id;
+            }
+          }
+        } catch (err) {
+          console.error('Failed to refresh messages after polling:', err);
+        }
+        return;
+      }
+
+      // Continue polling if still generating and haven't exceeded max attempts
+      if (pollCount < MAX_POLL_ATTEMPTS) {
+        timeoutId = setTimeout(poll, STATUS_POLL_INTERVAL_MS);
+      } else {
+        setGeneratingMessageId(null);
+      }
+    };
+
+    // Start polling after a short delay
+    timeoutId = setTimeout(poll, STATUS_POLL_INTERVAL_MS);
+
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [generatingMessageId, currentChatId, pollMessageStatus, setMessages]);
 
   // Helper to fetch and update messages from the server
   const refreshMessages = useCallback(async () => {

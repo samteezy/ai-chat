@@ -30,7 +30,10 @@ export const messages = sqliteTable('messages', {
   parentMessageId: text('parent_message_id'),
   versionGroup: text('version_group'),
   versionNumber: integer('version_number').default(1),
+  status: text('status', { enum: ['generating', 'completed', 'failed'] }).default('completed'),
+  error: text('error'),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }),
 });
 
 export const chatActiveBranch = sqliteTable('chat_active_branch', {

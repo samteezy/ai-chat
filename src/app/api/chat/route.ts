@@ -12,6 +12,104 @@ import { generateChatId, generateMessageId, generateVersionGroupId } from '@/lib
 import { buildMessageChain } from '@/lib/utils/messageTree';
 import { eq, asc } from 'drizzle-orm';
 
+// Consume stream in background and update message when complete
+// This runs detached from the HTTP response, so it continues even if client disconnects
+async function consumeStreamInBackground(
+  result: ReturnType<typeof streamText>,
+  assistantMessageId: string,
+  chatId: string,
+  endpointId: string,
+  endpointName: string,
+  model: string,
+  startTime: number
+) {
+  try {
+    // Consume the full stream - each property is a PromiseLike
+    const [text, reasoningText, usage] = await Promise.all([
+      result.text,
+      result.reasoningText,
+      result.usage,
+    ]);
+    const durationMs = Date.now() - startTime;
+
+    // Build parts array for storage
+    const parts: Array<{
+      type: string;
+      text?: string;
+      durationMs?: number;
+      inputTokens?: number;
+      outputTokens?: number;
+      endpointName?: string;
+      modelName?: string;
+    }> = [];
+    if (reasoningText) {
+      parts.push({ type: 'reasoning', text: reasoningText });
+    }
+    if (text) {
+      parts.push({ type: 'text', text });
+    }
+    parts.push({
+      type: 'metrics',
+      durationMs,
+      inputTokens: usage?.inputTokens,
+      outputTokens: usage?.outputTokens,
+      endpointName,
+      modelName: model,
+    });
+
+    // Update assistant message with completed content
+    await db
+      .update(messages)
+      .set({
+        content: text,
+        parts: parts.length > 0 ? parts : null,
+        status: 'completed',
+        updatedAt: new Date(),
+      })
+      .where(eq(messages.id, assistantMessageId));
+
+    // Update active branch to point to the assistant message
+    await db
+      .insert(chatActiveBranch)
+      .values({
+        chatId,
+        activeLeafMessageId: assistantMessageId,
+        updatedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: chatActiveBranch.chatId,
+        set: {
+          activeLeafMessageId: assistantMessageId,
+          updatedAt: new Date(),
+        },
+      });
+
+    // Update chat with latest endpoint/model and timestamp
+    await db
+      .update(chats)
+      .set({
+        endpointId,
+        model,
+        updatedAt: new Date(),
+      })
+      .where(eq(chats.id, chatId));
+  } catch (error) {
+    // Mark message as failed
+    const errorMessage =
+      error instanceof Error ? error.message : 'Unknown error during generation';
+    await db
+      .update(messages)
+      .set({
+        status: 'failed',
+        error: errorMessage,
+        updatedAt: new Date(),
+      })
+      .where(eq(messages.id, assistantMessageId));
+
+    console.error('Background stream consumption error:', error);
+  }
+}
+
 // Extract text content from UIMessage parts
 function getMessageContent(message: UIMessage): string {
   return message.parts
@@ -138,77 +236,45 @@ export async function POST(req: Request) {
       }));
     }
 
+    // Write-ahead: Create assistant message with 'generating' status BEFORE streaming
+    const assistantMessageId = generateMessageId();
+    const assistantVersionGroup = generateVersionGroupId();
+    await db.insert(messages).values({
+      id: assistantMessageId,
+      chatId,
+      role: 'assistant',
+      content: '',
+      parts: null,
+      parentMessageId: userMessageId,
+      versionGroup: assistantVersionGroup,
+      versionNumber: 1,
+      status: 'generating',
+      createdAt: now,
+      updatedAt: now,
+    });
+
     const result = streamText({
       model: wrappedModel,
       messages: modelMessages,
-      onFinish: async ({ text, reasoningText, usage }) => {
-        const durationMs = Date.now() - startTime;
-
-        // Build parts array for storage
-        const parts: Array<{ type: string; text?: string; durationMs?: number; inputTokens?: number; outputTokens?: number; endpointName?: string; modelName?: string }> = [];
-        if (reasoningText) {
-          parts.push({ type: 'reasoning', text: reasoningText });
-        }
-        if (text) {
-          parts.push({ type: 'text', text });
-        }
-        // Add metrics part for persistence
-        parts.push({
-          type: 'metrics',
-          durationMs,
-          inputTokens: usage?.inputTokens,
-          outputTokens: usage?.outputTokens,
-          endpointName: endpoint.name,
-          modelName: model,
-        });
-
-        // Save assistant message on completion with versioning info
-        const assistantMessageId = generateMessageId();
-        const assistantVersionGroup = generateVersionGroupId();
-        await db.insert(messages).values({
-          id: assistantMessageId,
-          chatId,
-          role: 'assistant',
-          content: text,
-          parts: parts.length > 0 ? parts : null,
-          parentMessageId: userMessageId,
-          versionGroup: assistantVersionGroup,
-          versionNumber: 1,
-          createdAt: new Date(),
-        });
-
-        // Update active branch to point to the new assistant message
-        await db
-          .insert(chatActiveBranch)
-          .values({
-            chatId,
-            activeLeafMessageId: assistantMessageId,
-            updatedAt: new Date(),
-          })
-          .onConflictDoUpdate({
-            target: chatActiveBranch.chatId,
-            set: {
-              activeLeafMessageId: assistantMessageId,
-              updatedAt: new Date(),
-            },
-          });
-
-        // Update chat with latest endpoint/model and timestamp
-        await db
-          .update(chats)
-          .set({
-            endpointId,
-            model,
-            updatedAt: new Date(),
-          })
-          .where(eq(chats.id, chatId));
-      },
     });
+
+    // Start background consumption - this continues even if client disconnects
+    // We don't await this promise - it runs detached
+    consumeStreamInBackground(
+      result,
+      assistantMessageId,
+      chatId,
+      endpointId,
+      endpoint.name,
+      model,
+      startTime
+    );
 
     return result.toUIMessageStreamResponse({
       sendReasoning: true,
       headers: {
         'X-Chat-Id': chatId,
+        'X-Message-Id': assistantMessageId,
       },
       messageMetadata: ({ part }) => {
         if (part.type === 'start') {

@@ -1,6 +1,8 @@
 import type { UIMessage } from 'ai';
 
 export type { Endpoint, Chat, Message, NewEndpoint, NewChat, NewMessage, ChatActiveBranch, NewChatActiveBranch } from '@/lib/db/schema';
+
+export type MessageStatus = 'generating' | 'completed' | 'failed';
 export type { Model, ModelsResponse } from '@/lib/ai/models';
 
 export interface ChatMessage {

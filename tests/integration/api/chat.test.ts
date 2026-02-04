@@ -173,8 +173,8 @@ describe('Chat API', () => {
 
       await POST(request);
 
-      // Should have called insert for chat and user message
-      expect(db.insert).toHaveBeenCalledTimes(2);
+      // Should have called insert for chat, user message, and assistant message (write-ahead)
+      expect(db.insert).toHaveBeenCalledTimes(3);
     });
 
     it('generates truncated title for long messages', async () => {
@@ -247,9 +247,15 @@ describe('Chat API', () => {
 
       await POST(request);
 
-      // Should only insert user message, not a new chat
-      expect(insertedValues.length).toBe(1);
+      // Should insert user message and assistant message (write-ahead), not a new chat
+      expect(insertedValues.length).toBe(2);
+      // First insert is user message
       expect(insertedValues[0].chatId).toBe('existing_chat_123');
+      expect(insertedValues[0].role).toBe('user');
+      // Second insert is assistant message with generating status
+      expect(insertedValues[1].chatId).toBe('existing_chat_123');
+      expect(insertedValues[1].role).toBe('assistant');
+      expect(insertedValues[1].status).toBe('generating');
     });
 
     it('saves user message to database', async () => {

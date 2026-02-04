@@ -10,7 +10,10 @@ export const mockUserMessage: Message = {
   parentMessageId: null,
   versionGroup: 'vg_user123',
   versionNumber: 1,
+  status: 'completed',
+  error: null,
   createdAt: new Date('2024-01-01T10:00:00'),
+  updatedAt: null,
 };
 
 export const mockAssistantMessage: Message = {
@@ -24,7 +27,10 @@ export const mockAssistantMessage: Message = {
   parentMessageId: 'msg_user123',
   versionGroup: 'vg_asst123',
   versionNumber: 1,
+  status: 'completed',
+  error: null,
   createdAt: new Date('2024-01-01T10:00:01'),
+  updatedAt: null,
 };
 
 export const mockAssistantMessageWithReasoning: Message = {
@@ -40,7 +46,10 @@ export const mockAssistantMessageWithReasoning: Message = {
   parentMessageId: 'msg_user123',
   versionGroup: 'vg_asst456',
   versionNumber: 1,
+  status: 'completed',
+  error: null,
   createdAt: new Date('2024-01-01T10:00:02'),
+  updatedAt: null,
 };
 
 export const mockMessages: Message[] = [
@@ -92,7 +101,10 @@ export function createMockMessage(overrides: Partial<Message> = {}): Message {
     parentMessageId: null,
     versionGroup: `vg_${id}`,
     versionNumber: 1,
+    status: 'completed',
+    error: null,
     createdAt: new Date(),
+    updatedAt: null,
     ...overrides,
   };
 }

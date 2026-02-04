@@ -81,6 +81,22 @@ export function initializeDatabase() {
     CREATE INDEX IF NOT EXISTS idx_messages_version_group ON messages(version_group);
   `);
 
+  // Add status, error, and updated_at columns for write-ahead pattern
+  if (!columnExists('messages', 'status')) {
+    sqlite.exec(`ALTER TABLE messages ADD COLUMN status TEXT DEFAULT 'completed'`);
+  }
+  if (!columnExists('messages', 'error')) {
+    sqlite.exec(`ALTER TABLE messages ADD COLUMN error TEXT`);
+  }
+  if (!columnExists('messages', 'updated_at')) {
+    sqlite.exec(`ALTER TABLE messages ADD COLUMN updated_at INTEGER`);
+  }
+
+  // Create index for status column
+  sqlite.exec(`
+    CREATE INDEX IF NOT EXISTS idx_messages_status ON messages(status);
+  `);
+
   // Migrate existing messages: link by createdAt order within each chat
   migrateExistingMessages();
 }

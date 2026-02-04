@@ -11,6 +11,93 @@ import { generateMessageId } from '@/lib/utils/id';
 import { buildMessageChain, getNextVersionNumber } from '@/lib/utils/messageTree';
 import { eq } from 'drizzle-orm';
 
+// Consume stream in background and update message when complete
+async function consumeStreamInBackground(
+  result: ReturnType<typeof streamText>,
+  assistantMessageId: string,
+  chatId: string,
+  endpointName: string,
+  modelName: string | null,
+  startTime: number
+) {
+  try {
+    // Consume the full stream - each property is a PromiseLike
+    const [text, reasoningText, usage] = await Promise.all([
+      result.text,
+      result.reasoningText,
+      result.usage,
+    ]);
+    const durationMs = Date.now() - startTime;
+
+    const parts: Array<{
+      type: string;
+      text?: string;
+      durationMs?: number;
+      inputTokens?: number;
+      outputTokens?: number;
+      endpointName?: string;
+      modelName?: string;
+    }> = [];
+    if (reasoningText) {
+      parts.push({ type: 'reasoning', text: reasoningText });
+    }
+    if (text) {
+      parts.push({ type: 'text', text });
+    }
+    parts.push({
+      type: 'metrics',
+      durationMs,
+      inputTokens: usage?.inputTokens,
+      outputTokens: usage?.outputTokens,
+      endpointName,
+      modelName: modelName || undefined,
+    });
+
+    await db
+      .update(messages)
+      .set({
+        content: text,
+        parts: parts.length > 0 ? parts : null,
+        status: 'completed',
+        updatedAt: new Date(),
+      })
+      .where(eq(messages.id, assistantMessageId));
+
+    await db
+      .insert(chatActiveBranch)
+      .values({
+        chatId,
+        activeLeafMessageId: assistantMessageId,
+        updatedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: chatActiveBranch.chatId,
+        set: {
+          activeLeafMessageId: assistantMessageId,
+          updatedAt: new Date(),
+        },
+      });
+
+    await db
+      .update(chats)
+      .set({ updatedAt: new Date() })
+      .where(eq(chats.id, chatId));
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : 'Unknown error during generation';
+    await db
+      .update(messages)
+      .set({
+        status: 'failed',
+        error: errorMessage,
+        updatedAt: new Date(),
+      })
+      .where(eq(messages.id, assistantMessageId));
+
+    console.error('Background stream consumption error:', error);
+  }
+}
+
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -99,72 +186,44 @@ export async function POST(
       middleware: extractReasoningMiddleware({ tagName: 'think' }),
     });
 
+    // Write-ahead: Create assistant message with 'generating' status BEFORE streaming
+    const newAssistantMessageId = generateMessageId();
+    const now = new Date();
+    await db.insert(messages).values({
+      id: newAssistantMessageId,
+      chatId: originalMessage.chatId,
+      role: 'assistant',
+      content: '',
+      parts: null,
+      parentMessageId: originalMessage.parentMessageId,
+      versionGroup: originalMessage.versionGroup,
+      versionNumber: nextVersionNumber,
+      status: 'generating',
+      createdAt: now,
+      updatedAt: now,
+    });
+
     // Stream the new assistant response
     const result = streamText({
       model: wrappedModel,
       messages: modelMessages,
-      onFinish: async ({ text, reasoningText, usage }) => {
-        const durationMs = Date.now() - startTime;
-
-        // Build parts array for storage
-        const parts: Array<{ type: string; text?: string; durationMs?: number; inputTokens?: number; outputTokens?: number; endpointName?: string; modelName?: string }> = [];
-        if (reasoningText) {
-          parts.push({ type: 'reasoning', text: reasoningText });
-        }
-        if (text) {
-          parts.push({ type: 'text', text });
-        }
-        parts.push({
-          type: 'metrics',
-          durationMs,
-          inputTokens: usage?.inputTokens,
-          outputTokens: usage?.outputTokens,
-          endpointName: endpoint.name,
-          modelName: chat.model || undefined,
-        });
-
-        // Save new assistant message as a new version
-        const newAssistantMessageId = generateMessageId();
-        await db.insert(messages).values({
-          id: newAssistantMessageId,
-          chatId: originalMessage.chatId,
-          role: 'assistant',
-          content: text,
-          parts: parts.length > 0 ? parts : null,
-          parentMessageId: originalMessage.parentMessageId,
-          versionGroup: originalMessage.versionGroup,
-          versionNumber: nextVersionNumber,
-          createdAt: new Date(),
-        });
-
-        // Update active branch to point to the new message
-        await db
-          .insert(chatActiveBranch)
-          .values({
-            chatId: originalMessage.chatId,
-            activeLeafMessageId: newAssistantMessageId,
-            updatedAt: new Date(),
-          })
-          .onConflictDoUpdate({
-            target: chatActiveBranch.chatId,
-            set: {
-              activeLeafMessageId: newAssistantMessageId,
-              updatedAt: new Date(),
-            },
-          });
-
-        // Update chat timestamp
-        await db
-          .update(chats)
-          .set({ updatedAt: new Date() })
-          .where(eq(chats.id, originalMessage.chatId));
-      },
     });
+
+    // Start background consumption - continues even if client disconnects
+    consumeStreamInBackground(
+      result,
+      newAssistantMessageId,
+      originalMessage.chatId,
+      endpoint.name,
+      chat.model,
+      startTime
+    );
 
     return result.toUIMessageStreamResponse({
       sendReasoning: true,
       headers: {
         'X-Original-Message-Id': messageId,
+        'X-Message-Id': newAssistantMessageId,
       },
       messageMetadata: ({ part }) => {
         if (part.type === 'start') {

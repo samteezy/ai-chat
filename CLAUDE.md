@@ -88,8 +88,41 @@ The database is auto-initialized on first run.
 - Uses `useChat` hook from `@ai-sdk/react` with `DefaultChatTransport` for streaming
 - Messages use the `UIMessage` format with `parts` array containing `{ type: 'text', text: string }`
 - Chat API uses `toUIMessageStreamResponse()` for streaming responses
-- Messages are persisted on stream completion via `onFinish` callback
+- Messages are persisted using write-ahead pattern (see Design Principles below)
 - Provider factory pattern allows switching between endpoints
+
+## Design Principles
+
+### Backend-First for Long-Running Operations
+
+For operations that may take significant time (like AI generation), the backend should be resilient to client disconnection. The user experience should not be degraded if they switch tabs, lose network connection briefly, or close the browser.
+
+### Write-Ahead Pattern
+
+AI response generation uses a **write-ahead pattern** to ensure responses are never lost:
+
+1. **Before streaming begins**: Create the assistant message record with `status: 'generating'` and empty content
+2. **Detached stream consumption**: The stream is consumed in a background promise that continues regardless of client connection
+3. **On completion**: Update the message with final content and `status: 'completed'`
+4. **On error**: Update the message with `status: 'failed'` and error details
+
+This pattern is implemented in:
+- `src/app/api/chat/route.ts` - Main chat completions
+- `src/app/api/messages/[id]/edit/route.ts` - Message editing
+- `src/app/api/messages/[id]/regenerate/route.ts` - Response regeneration
+
+### Message Status Tracking
+
+Messages have a `status` field with three possible values:
+- `generating` - AI is still producing the response
+- `completed` - Response finished successfully
+- `failed` - An error occurred during generation
+
+The frontend polls `/api/messages/[id]/status` if it detects a message may still be generating after reconnection.
+
+### Cleanup for Stuck Generations
+
+The `/api/cleanup/stuck-generations` endpoint marks messages that have been in `generating` status for too long (default: 10 minutes) as `failed`. This can be called periodically or on app startup to handle edge cases where the server crashed during generation.
 
 ## Features
 
