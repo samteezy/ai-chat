@@ -16,3 +16,7 @@ export function generateMessageId(): string {
 export function generateEndpointId(): string {
   return generateId('ep');
 }
+
+export function generateVersionGroupId(): string {
+  return generateId('vg');
+}

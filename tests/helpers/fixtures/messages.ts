@@ -7,6 +7,9 @@ export const mockUserMessage: Message = {
   role: 'user',
   content: 'Hello, how are you?',
   parts: null,
+  parentMessageId: null,
+  versionGroup: 'vg_user123',
+  versionNumber: 1,
   createdAt: new Date('2024-01-01T10:00:00'),
 };
 
@@ -18,6 +21,9 @@ export const mockAssistantMessage: Message = {
   parts: [
     { type: 'text', text: 'I am doing well, thank you!' },
   ],
+  parentMessageId: 'msg_user123',
+  versionGroup: 'vg_asst123',
+  versionNumber: 1,
   createdAt: new Date('2024-01-01T10:00:01'),
 };
 
@@ -31,6 +37,9 @@ export const mockAssistantMessageWithReasoning: Message = {
     { type: 'text', text: 'The answer is 42.' },
     { type: 'metrics', durationMs: 1500, inputTokens: 10, outputTokens: 20, endpointName: 'Test', modelName: 'model-1' },
   ],
+  parentMessageId: 'msg_user123',
+  versionGroup: 'vg_asst456',
+  versionNumber: 1,
   createdAt: new Date('2024-01-01T10:00:02'),
 };
 
@@ -73,12 +82,16 @@ export const mockUIMessages: ChatUIMessage[] = [
 ];
 
 export function createMockMessage(overrides: Partial<Message> = {}): Message {
+  const id = `msg_${Math.random().toString(36).substring(7)}`;
   return {
-    id: `msg_${Math.random().toString(36).substring(7)}`,
+    id,
     chatId: 'chat_test123',
     role: 'user',
     content: 'Test message',
     parts: null,
+    parentMessageId: null,
+    versionGroup: `vg_${id}`,
+    versionNumber: 1,
     createdAt: new Date(),
     ...overrides,
   };

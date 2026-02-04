@@ -1,6 +1,6 @@
 import type { UIMessage } from 'ai';
 
-export type { Endpoint, Chat, Message, NewEndpoint, NewChat, NewMessage } from '@/lib/db/schema';
+export type { Endpoint, Chat, Message, NewEndpoint, NewChat, NewMessage, ChatActiveBranch, NewChatActiveBranch } from '@/lib/db/schema';
 export type { Model, ModelsResponse } from '@/lib/ai/models';
 
 export interface ChatMessage {
@@ -23,4 +23,15 @@ export interface MessageMetadata {
   modelName?: string;
 }
 
+export interface VersionInfo {
+  versionGroup: string;
+  versionNumber: number;
+  totalVersions: number;
+  siblingIds: string[];
+}
+
 export type ChatUIMessage = UIMessage<MessageMetadata>;
+
+export interface ChatUIMessageWithVersioning extends ChatUIMessage {
+  versionInfo?: VersionInfo;
+}

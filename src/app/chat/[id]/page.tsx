@@ -1,11 +1,12 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { db } from '@/lib/db';
-import { chats, messages, endpoints } from '@/lib/db/schema';
+import { chats, messages, endpoints, chatActiveBranch } from '@/lib/db/schema';
 import { eq, asc, desc } from 'drizzle-orm';
 import { ChatInterface } from '@/components/chat/ChatInterface';
 import { ChatList } from '@/components/chat/ChatList';
 import { NewChatButton } from '@/components/chat/NewChatButton';
+import { buildMessageChain, addVersionInfoToChain, findActiveLeaf } from '@/lib/utils/messageTree';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,12 +23,32 @@ export default async function ChatPage({ params }: ChatPageProps) {
     notFound();
   }
 
-  const chatMessages = await db
+  // Get all messages for the chat
+  const allMessages = await db
     .select()
     .from(messages)
     .where(eq(messages.chatId, id))
     .orderBy(asc(messages.createdAt))
     .all();
+
+  // Get the active branch record
+  const activeBranch = await db
+    .select()
+    .from(chatActiveBranch)
+    .where(eq(chatActiveBranch.chatId, id))
+    .get();
+
+  // Find the active leaf and build the chain
+  const activeLeaf = findActiveLeaf(allMessages, activeBranch?.activeLeafMessageId);
+
+  let chatMessages;
+  if (activeLeaf) {
+    const chain = buildMessageChain(allMessages, activeLeaf.id);
+    chatMessages = addVersionInfoToChain(chain, allMessages);
+  } else {
+    // Fallback: return all messages if no active leaf found
+    chatMessages = addVersionInfoToChain(allMessages, allMessages);
+  }
 
   const allChats = await db
     .select()
@@ -103,6 +124,7 @@ export default async function ChatPage({ params }: ChatPageProps) {
             role: m.role,
             content: m.content,
             parts: m.parts as Array<{ type: 'text'; text: string } | { type: 'reasoning'; text: string }> | null,
+            versionInfo: m.versionInfo,
           }))}
           endpoints={allEndpoints}
         />

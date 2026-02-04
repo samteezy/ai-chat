@@ -100,9 +100,18 @@ describe('Chat by ID API', () => {
         }),
       };
 
+      const mockActiveBranchQuery = {
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            get: vi.fn().mockReturnValue(null),
+          }),
+        }),
+      };
+
       vi.mocked(db.select)
         .mockReturnValueOnce(mockChatQuery as any)
-        .mockReturnValueOnce(mockMessagesQuery as any);
+        .mockReturnValueOnce(mockMessagesQuery as any)
+        .mockReturnValueOnce(mockActiveBranchQuery as any);
 
       const { GET } = await import('@/app/api/chats/[id]/route');
 

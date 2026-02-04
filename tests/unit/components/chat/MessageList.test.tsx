@@ -61,8 +61,8 @@ describe('MessageList', () => {
 
       render(<MessageList messages={messages} isLoading={false} />);
 
-      const flexContainer = screen.getByText('Hello').closest('div[class*="flex"]');
-      expect(flexContainer).toHaveClass('justify-end');
+      const flexContainer = screen.getByText('Hello').closest('div[class*="flex-col"]');
+      expect(flexContainer).toHaveClass('items-end');
     });
 
     it('aligns assistant messages to the left', () => {
@@ -76,8 +76,8 @@ describe('MessageList', () => {
 
       render(<MessageList messages={messages} isLoading={false} />);
 
-      const flexContainer = screen.getByTestId('markdown').closest('div[class*="flex justify"]');
-      expect(flexContainer).toHaveClass('justify-start');
+      const flexContainer = screen.getByTestId('markdown').closest('div[class*="flex-col"]');
+      expect(flexContainer).toHaveClass('items-start');
     });
 
     it('renders multiple messages in order', () => {

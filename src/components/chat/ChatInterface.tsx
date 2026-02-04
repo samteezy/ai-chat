@@ -7,8 +7,9 @@ import { useRouter } from 'next/navigation';
 import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
 import { ModelSelector } from './ModelSelector';
+import { EditMessageModal } from './EditMessageModal';
 import type { Endpoint } from '@/lib/db/schema';
-import type { ChatUIMessage, MessageMetadata } from '@/types';
+import type { ChatUIMessageWithVersioning, MessageMetadata, VersionInfo } from '@/types';
 
 type MessagePart =
   | { type: 'text'; text: string }
@@ -24,6 +25,7 @@ interface ChatInterfaceProps {
     role: 'user' | 'assistant' | 'system';
     content: string;
     parts?: MessagePart[] | null;
+    versionInfo?: VersionInfo;
   }>;
   endpoints: Endpoint[];
 }
@@ -42,6 +44,8 @@ export function ChatInterface({
   const [selectedModel, setSelectedModel] = useState(initialModel);
   const [currentChatId, setCurrentChatId] = useState(chatId);
   const [input, setInput] = useState('');
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [regeneratingMessageId, setRegeneratingMessageId] = useState<string | null>(null);
 
   // Track chat ID with a ref to avoid stale closures in fetch callback
   const chatIdRef = useRef(currentChatId);
@@ -54,8 +58,8 @@ export function ChatInterface({
   const selectedModelRef = useRef(selectedModel);
   selectedModelRef.current = selectedModel;
 
-  // Convert initialMessages to UIMessage format with metadata
-  const convertedInitialMessages: ChatUIMessage[] = useMemo(
+  // Convert initialMessages to UIMessage format with metadata and version info
+  const convertedInitialMessages: ChatUIMessageWithVersioning[] = useMemo(
     () =>
       initialMessages.map((m) => {
         const metricsPart = m.parts?.find((p): p is { type: 'metrics'; durationMs?: number; inputTokens?: number; outputTokens?: number; endpointName?: string; modelName?: string } => p.type === 'metrics');
@@ -75,6 +79,7 @@ export function ChatInterface({
             ? displayParts.filter((p): p is { type: 'text'; text: string } | { type: 'reasoning'; text: string } => p.type === 'text' || p.type === 'reasoning')
             : [{ type: 'text' as const, text: m.content }],
           metadata,
+          versionInfo: m.versionInfo,
         };
       }),
     [initialMessages]
@@ -105,7 +110,7 @@ export function ChatInterface({
     []
   );
 
-  const { messages, sendMessage, status, error } = useChat<ChatUIMessage>({
+  const { messages, setMessages, sendMessage, status, error } = useChat<ChatUIMessageWithVersioning>({
     transport,
     messages: convertedInitialMessages,
     onFinish: () => {
@@ -143,6 +148,174 @@ export function ChatInterface({
     [canSend, isLoading, input, sendMessage]
   );
 
+  // Get message content by ID
+  const getMessageContent = useCallback(
+    (messageId: string) => {
+      const message = messages.find((m) => m.id === messageId);
+      if (!message) return '';
+      return message.parts
+        .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
+        .map((part) => part.text)
+        .join('');
+    },
+    [messages]
+  );
+
+  // Helper to fetch and update messages from the server
+  const refreshMessages = useCallback(async () => {
+    if (!currentChatId) return;
+
+    try {
+      const response = await fetch(`/api/chats/${currentChatId}`);
+      if (!response.ok) return;
+
+      const data = await response.json();
+      const newMessages: ChatUIMessageWithVersioning[] = data.messages.map((m: any) => {
+        const metricsPart = m.parts?.find((p: any) => p.type === 'metrics');
+        const displayParts = m.parts?.filter((p: any) => p.type !== 'metrics') ?? [];
+        const metadata: MessageMetadata | undefined = metricsPart ? {
+          durationMs: metricsPart.durationMs,
+          inputTokens: metricsPart.inputTokens,
+          outputTokens: metricsPart.outputTokens,
+          endpointName: metricsPart.endpointName,
+          modelName: metricsPart.modelName,
+        } : undefined;
+
+        return {
+          id: m.id,
+          role: m.role,
+          parts: displayParts.length > 0
+            ? displayParts.filter((p: any) => p.type === 'text' || p.type === 'reasoning')
+            : [{ type: 'text' as const, text: m.content }],
+          metadata,
+          versionInfo: m.versionInfo,
+        };
+      });
+
+      setMessages(newMessages);
+    } catch (err) {
+      console.error('Failed to refresh messages:', err);
+    }
+  }, [currentChatId, setMessages]);
+
+  // Handle editing a user message
+  const handleEdit = useCallback(
+    async (newContent: string) => {
+      if (!editingMessageId || !currentChatId) return;
+
+      setEditingMessageId(null);
+
+      try {
+        const response = await fetch(`/api/messages/${editingMessageId}/edit`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: newContent }),
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to edit message');
+        }
+
+        // Wait for streaming to complete by consuming the response
+        await response.text();
+
+        // Fetch updated messages
+        await refreshMessages();
+        router.refresh(); // Also refresh sidebar chat list
+      } catch (err) {
+        console.error('Failed to edit message:', err);
+      }
+    },
+    [editingMessageId, currentChatId, refreshMessages, router]
+  );
+
+  // Handle regenerating an assistant message
+  const handleRegenerate = useCallback(
+    async (messageId: string) => {
+      if (!currentChatId) return;
+
+      setRegeneratingMessageId(messageId);
+
+      try {
+        const response = await fetch(`/api/messages/${messageId}/regenerate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to regenerate message');
+        }
+
+        // Wait for streaming to complete by consuming the response
+        await response.text();
+
+        // Fetch updated messages
+        await refreshMessages();
+        router.refresh(); // Also refresh sidebar chat list
+      } catch (err) {
+        console.error('Failed to regenerate message:', err);
+      } finally {
+        setRegeneratingMessageId(null);
+      }
+    },
+    [currentChatId, refreshMessages, router]
+  );
+
+  // Handle switching message version
+  const handleSwitchVersion = useCallback(
+    async (messageId: string, direction: 'prev' | 'next') => {
+      const message = messages.find((m) => m.id === messageId);
+      if (!message?.versionInfo) return;
+
+      const { siblingIds, versionNumber } = message.versionInfo;
+      const targetIndex = direction === 'prev' ? versionNumber - 2 : versionNumber;
+      const targetVersionId = siblingIds[targetIndex];
+
+      if (!targetVersionId) return;
+
+      try {
+        const response = await fetch(`/api/messages/${messageId}/switch-version`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ targetVersionId }),
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to switch version');
+        }
+
+        // The API returns the new message chain directly
+        const data = await response.json();
+        const newMessages: ChatUIMessageWithVersioning[] = data.messages.map((m: any) => {
+          const metricsPart = m.parts?.find((p: any) => p.type === 'metrics');
+          const displayParts = m.parts?.filter((p: any) => p.type !== 'metrics') ?? [];
+          const metadata: MessageMetadata | undefined = metricsPart ? {
+            durationMs: metricsPart.durationMs,
+            inputTokens: metricsPart.inputTokens,
+            outputTokens: metricsPart.outputTokens,
+            endpointName: metricsPart.endpointName,
+            modelName: metricsPart.modelName,
+          } : undefined;
+
+          return {
+            id: m.id,
+            role: m.role,
+            parts: displayParts.length > 0
+              ? displayParts.filter((p: any) => p.type === 'text' || p.type === 'reasoning')
+              : [{ type: 'text' as const, text: m.content }],
+            metadata,
+            versionInfo: m.versionInfo,
+          };
+        });
+
+        setMessages(newMessages);
+      } catch (err) {
+        console.error('Failed to switch version:', err);
+      }
+    },
+    [messages, setMessages]
+  );
+
   return (
     <div className="flex flex-col h-full">
       {/* Header with model selector */}
@@ -158,8 +331,23 @@ export function ChatInterface({
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto">
-        <MessageList messages={messages} isLoading={isLoading} />
+        <MessageList
+          messages={messages}
+          isLoading={isLoading}
+          regeneratingMessageId={regeneratingMessageId}
+          onEdit={(messageId) => setEditingMessageId(messageId)}
+          onRegenerate={handleRegenerate}
+          onSwitchVersion={handleSwitchVersion}
+        />
       </div>
+
+      {/* Edit Modal */}
+      <EditMessageModal
+        isOpen={!!editingMessageId}
+        initialContent={editingMessageId ? getMessageContent(editingMessageId) : ''}
+        onSave={handleEdit}
+        onCancel={() => setEditingMessageId(null)}
+      />
 
       {/* Error display */}
       {error && (

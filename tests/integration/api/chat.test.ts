@@ -32,6 +32,7 @@ vi.mock('@/lib/db', () => ({
 vi.mock('@/lib/utils/id', () => ({
   generateChatId: vi.fn(() => 'chat_test123'),
   generateMessageId: vi.fn(() => 'msg_test123'),
+  generateVersionGroupId: vi.fn(() => 'vg_test123'),
 }));
 
 vi.mock('@/lib/ai/provider', () => ({

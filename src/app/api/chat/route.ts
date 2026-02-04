@@ -6,9 +6,9 @@ import {
 } from 'ai';
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { endpoints, chats, messages } from '@/lib/db/schema';
+import { endpoints, chats, messages, chatActiveBranch } from '@/lib/db/schema';
 import { createProvider } from '@/lib/ai/provider';
-import { generateChatId, generateMessageId } from '@/lib/utils/id';
+import { generateChatId, generateMessageId, generateVersionGroupId } from '@/lib/utils/id';
 import { eq } from 'drizzle-orm';
 
 // Extract text content from UIMessage parts
@@ -29,6 +29,7 @@ export async function POST(req: Request) {
       endpointId,
       model,
       chatId: existingChatId,
+      parentMessageId,
     } = body;
 
     if (!endpointId || !model) {
@@ -81,14 +82,20 @@ export async function POST(req: Request) {
       });
     }
 
-    // Save user message
+    // Save user message with versioning info
     const lastUserMessage = chatMessages[chatMessages.length - 1];
+    let userMessageId: string | null = null;
     if (lastUserMessage && lastUserMessage.role === 'user') {
+      userMessageId = generateMessageId();
+      const userVersionGroup = generateVersionGroupId();
       await db.insert(messages).values({
-        id: generateMessageId(),
+        id: userMessageId,
         chatId,
         role: 'user',
         content: getMessageContent(lastUserMessage),
+        parentMessageId: parentMessageId || null,
+        versionGroup: userVersionGroup,
+        versionNumber: 1,
         createdAt: now,
       });
     }
@@ -123,15 +130,36 @@ export async function POST(req: Request) {
           modelName: model,
         });
 
-        // Save assistant message on completion
+        // Save assistant message on completion with versioning info
+        const assistantMessageId = generateMessageId();
+        const assistantVersionGroup = generateVersionGroupId();
         await db.insert(messages).values({
-          id: generateMessageId(),
+          id: assistantMessageId,
           chatId,
           role: 'assistant',
           content: text,
           parts: parts.length > 0 ? parts : null,
+          parentMessageId: userMessageId,
+          versionGroup: assistantVersionGroup,
+          versionNumber: 1,
           createdAt: new Date(),
         });
+
+        // Update active branch to point to the new assistant message
+        await db
+          .insert(chatActiveBranch)
+          .values({
+            chatId,
+            activeLeafMessageId: assistantMessageId,
+            updatedAt: new Date(),
+          })
+          .onConflictDoUpdate({
+            target: chatActiveBranch.chatId,
+            set: {
+              activeLeafMessageId: assistantMessageId,
+              updatedAt: new Date(),
+            },
+          });
 
         // Update chat with latest endpoint/model and timestamp
         await db

@@ -27,7 +27,18 @@ export const messages = sqliteTable('messages', {
   role: text('role', { enum: ['user', 'assistant', 'system'] }).notNull(),
   content: text('content').notNull(),
   parts: text('parts', { mode: 'json' }),
+  parentMessageId: text('parent_message_id'),
+  versionGroup: text('version_group'),
+  versionNumber: integer('version_number').default(1),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+});
+
+export const chatActiveBranch = sqliteTable('chat_active_branch', {
+  chatId: text('chat_id')
+    .primaryKey()
+    .references(() => chats.id, { onDelete: 'cascade' }),
+  activeLeafMessageId: text('active_leaf_message_id').notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
 });
 
 export type Endpoint = typeof endpoints.$inferSelect;
@@ -36,3 +47,5 @@ export type Chat = typeof chats.$inferSelect;
 export type NewChat = typeof chats.$inferInsert;
 export type Message = typeof messages.$inferSelect;
 export type NewMessage = typeof messages.$inferInsert;
+export type ChatActiveBranch = typeof chatActiveBranch.$inferSelect;
+export type NewChatActiveBranch = typeof chatActiveBranch.$inferInsert;
