@@ -7,6 +7,9 @@ import {
   addVersionInfoToChain,
   getVersionSiblings,
 } from '@/lib/utils/messageTree';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('api/messages/switch-version');
 
 export async function POST(
   req: Request,
@@ -110,7 +113,7 @@ export async function POST(
       activeLeafId: newLeafId,
     });
   } catch (error) {
-    console.error('Switch version error:', error);
+    logger.error('Switch version failed', { error: String(error) });
     return NextResponse.json(
       { error: 'Failed to switch version' },
       { status: 500 }

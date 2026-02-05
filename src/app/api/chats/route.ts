@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { chats, messages } from '@/lib/db/schema';
 import { eq, desc, inArray } from 'drizzle-orm';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('api/chats');
 
 export async function GET() {
   try {
@@ -13,7 +16,7 @@ export async function GET() {
 
     return NextResponse.json(allChats);
   } catch (error) {
-    console.error('Failed to fetch chats:', error);
+    logger.error('Failed to fetch chats', { error: String(error) });
     return NextResponse.json(
       { error: 'Failed to fetch chats' },
       { status: 500 }
@@ -56,7 +59,7 @@ export async function DELETE(req: Request) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Failed to delete chat:', error);
+    logger.error('Failed to delete chat', { error: String(error) });
     return NextResponse.json(
       { error: 'Failed to delete chat' },
       { status: 500 }

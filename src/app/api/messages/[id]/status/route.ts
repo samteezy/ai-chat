@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { messages } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('api/messages/status');
 
 export async function GET(
   req: Request,
@@ -37,7 +40,7 @@ export async function GET(
       updatedAt: message.updatedAt?.getTime() || null,
     });
   } catch (error) {
-    console.error('Get message status error:', error);
+    logger.error('Get message status failed', { error: String(error) });
     return NextResponse.json(
       { error: 'Failed to get message status' },
       { status: 500 }

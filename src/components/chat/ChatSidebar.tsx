@@ -7,6 +7,7 @@ import type { Chat, Endpoint } from '@/lib/db/schema';
 import { ChatList } from './ChatList';
 import { NewChatButton } from './NewChatButton';
 import { BulkDeleteBar } from './BulkDeleteBar';
+import { LogViewerToggle } from '@/components/logs';
 
 interface ChatSidebarProps {
   chats: Chat[];
@@ -247,7 +248,8 @@ export function ChatSidebar({
         />
       )}
 
-      <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+      <div className="p-4 border-t border-gray-200 dark:border-gray-700 space-y-3">
+        <LogViewerToggle />
         <Link
           href="/settings"
           className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"

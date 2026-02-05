@@ -3,6 +3,9 @@ import { db } from '@/lib/db';
 import { endpoints } from '@/lib/db/schema';
 import { fetchModels } from '@/lib/ai/models';
 import { eq } from 'drizzle-orm';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('api/models');
 
 export async function GET(req: Request) {
   try {
@@ -34,7 +37,7 @@ export async function GET(req: Request) {
     return NextResponse.json(models);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
-    console.error('Failed to fetch models:', message);
+    logger.error('Failed to fetch models', { error: message });
     return NextResponse.json(
       { error: message },
       { status: 500 }

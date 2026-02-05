@@ -10,6 +10,9 @@ import { createProvider } from '@/lib/ai/provider';
 import { generateMessageId, generateVersionGroupId } from '@/lib/utils/id';
 import { buildMessageChain, getNextVersionNumber } from '@/lib/utils/messageTree';
 import { eq } from 'drizzle-orm';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('api/messages/edit');
 
 // Consume stream in background and update message when complete
 async function consumeStreamInBackground(
@@ -94,7 +97,7 @@ async function consumeStreamInBackground(
       })
       .where(eq(messages.id, assistantMessageId));
 
-    console.error('Background stream consumption error:', error);
+    logger.error('Background stream consumption failed', { error: String(error) });
   }
 }
 
@@ -263,7 +266,7 @@ export async function POST(
       },
     });
   } catch (error) {
-    console.error('Edit message error:', error);
+    logger.error('Edit message failed', { error: String(error) });
     return NextResponse.json(
       { error: 'Failed to edit message' },
       { status: 500 }

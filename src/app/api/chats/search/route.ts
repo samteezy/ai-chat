@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { chats, messages } from '@/lib/db/schema';
 import { like, or, desc, eq } from 'drizzle-orm';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('api/chats/search');
 
 export async function GET(req: Request) {
   try {
@@ -58,7 +61,7 @@ export async function GET(req: Request) {
 
     return NextResponse.json(allResults);
   } catch (error) {
-    console.error('Failed to search chats:', error);
+    logger.error('Failed to search chats', { error: String(error) });
     return NextResponse.json(
       { error: 'Failed to search chats' },
       { status: 500 }

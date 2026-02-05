@@ -62,6 +62,26 @@ export function initializeDatabase() {
 
     CREATE INDEX IF NOT EXISTS idx_messages_chat_id ON messages(chat_id);
     CREATE INDEX IF NOT EXISTS idx_chats_endpoint_id ON chats(endpoint_id);
+
+    CREATE TABLE IF NOT EXISTS logs (
+      id TEXT PRIMARY KEY,
+      level TEXT NOT NULL CHECK (level IN ('debug', 'info', 'warn', 'error')),
+      message TEXT NOT NULL,
+      context TEXT,
+      source TEXT NOT NULL,
+      request_id TEXT,
+      created_at INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_logs_level ON logs(level);
+    CREATE INDEX IF NOT EXISTS idx_logs_source ON logs(source);
+    CREATE INDEX IF NOT EXISTS idx_logs_created_at ON logs(created_at);
+
+    CREATE TABLE IF NOT EXISTS user_preferences (
+      key TEXT PRIMARY KEY,
+      value TEXT,
+      updated_at INTEGER NOT NULL
+    );
   `);
 
   // Add versioning columns to messages table if they don't exist

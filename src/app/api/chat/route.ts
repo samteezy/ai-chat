@@ -11,6 +11,9 @@ import { createProvider } from '@/lib/ai/provider';
 import { generateChatId, generateMessageId, generateVersionGroupId } from '@/lib/utils/id';
 import { buildMessageChain } from '@/lib/utils/messageTree';
 import { eq, asc } from 'drizzle-orm';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('api/chat');
 
 // Consume stream in background and update message when complete
 // This runs detached from the HTTP response, so it continues even if client disconnects
@@ -106,7 +109,7 @@ async function consumeStreamInBackground(
       })
       .where(eq(messages.id, assistantMessageId));
 
-    console.error('Background stream consumption error:', error);
+    logger.error('Background stream consumption failed', { error: String(error) });
   }
 }
 
@@ -293,7 +296,7 @@ export async function POST(req: Request) {
       },
     });
   } catch (error) {
-    console.error('Chat error:', error);
+    logger.error('Chat request failed', { error: String(error) });
     return NextResponse.json(
       { error: 'Failed to process chat request' },
       { status: 500 }

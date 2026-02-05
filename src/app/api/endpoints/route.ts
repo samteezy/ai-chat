@@ -3,13 +3,16 @@ import { db } from '@/lib/db';
 import { endpoints } from '@/lib/db/schema';
 import { generateEndpointId } from '@/lib/utils/id';
 import { eq } from 'drizzle-orm';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('api/endpoints');
 
 export async function GET() {
   try {
     const allEndpoints = await db.select().from(endpoints).all();
     return NextResponse.json(allEndpoints);
   } catch (error) {
-    console.error('Failed to fetch endpoints:', error);
+    logger.error('Failed to fetch endpoints', { error: String(error) });
     return NextResponse.json(
       { error: 'Failed to fetch endpoints' },
       { status: 500 }
@@ -53,7 +56,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json(newEndpoint, { status: 201 });
   } catch (error) {
-    console.error('Failed to create endpoint:', error);
+    logger.error('Failed to create endpoint', { error: String(error) });
     return NextResponse.json(
       { error: 'Failed to create endpoint' },
       { status: 500 }
@@ -102,7 +105,7 @@ export async function PUT(req: Request) {
 
     return NextResponse.json(updated);
   } catch (error) {
-    console.error('Failed to update endpoint:', error);
+    logger.error('Failed to update endpoint', { error: String(error) });
     return NextResponse.json(
       { error: 'Failed to update endpoint' },
       { status: 500 }
@@ -126,7 +129,7 @@ export async function DELETE(req: Request) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Failed to delete endpoint:', error);
+    logger.error('Failed to delete endpoint', { error: String(error) });
     return NextResponse.json(
       { error: 'Failed to delete endpoint' },
       { status: 500 }

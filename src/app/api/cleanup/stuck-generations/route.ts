@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { messages } from '@/lib/db/schema';
 import { eq, and, lt } from 'drizzle-orm';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('api/cleanup/stuck-generations');
 
 // Default timeout for stuck generations: 10 minutes
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
@@ -45,7 +48,7 @@ export async function POST(req: Request) {
       timeoutMs,
     });
   } catch (error) {
-    console.error('Cleanup stuck generations error:', error);
+    logger.error('Cleanup stuck generations failed', { error: String(error) });
     return NextResponse.json(
       { error: 'Failed to cleanup stuck generations' },
       { status: 500 }

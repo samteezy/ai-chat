@@ -20,3 +20,7 @@ export function generateEndpointId(): string {
 export function generateVersionGroupId(): string {
   return generateId('vg');
 }
+
+export function generateLogId(): string {
+  return generateId('log');
+}

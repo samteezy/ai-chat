@@ -3,6 +3,9 @@ import { db } from '@/lib/db';
 import { chats, messages, chatActiveBranch } from '@/lib/db/schema';
 import { eq, asc } from 'drizzle-orm';
 import { buildMessageChain, addVersionInfoToChain, findActiveLeaf } from '@/lib/utils/messageTree';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('api/chats/[id]');
 
 export async function GET(
   req: Request,
@@ -56,7 +59,7 @@ export async function GET(
       messages: chatMessages,
     });
   } catch (error) {
-    console.error('Failed to fetch chat:', error);
+    logger.error('Failed to fetch chat', { error: String(error) });
     return NextResponse.json(
       { error: 'Failed to fetch chat' },
       { status: 500 }

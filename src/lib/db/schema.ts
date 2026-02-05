@@ -52,3 +52,24 @@ export type Message = typeof messages.$inferSelect;
 export type NewMessage = typeof messages.$inferInsert;
 export type ChatActiveBranch = typeof chatActiveBranch.$inferSelect;
 export type NewChatActiveBranch = typeof chatActiveBranch.$inferInsert;
+
+export const logs = sqliteTable('logs', {
+  id: text('id').primaryKey(),
+  level: text('level', { enum: ['debug', 'info', 'warn', 'error'] }).notNull(),
+  message: text('message').notNull(),
+  context: text('context', { mode: 'json' }),
+  source: text('source').notNull(),
+  requestId: text('request_id'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+});
+
+export const userPreferences = sqliteTable('user_preferences', {
+  key: text('key').primaryKey(),
+  value: text('value', { mode: 'json' }),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
+});
+
+export type Log = typeof logs.$inferSelect;
+export type NewLog = typeof logs.$inferInsert;
+export type UserPreference = typeof userPreferences.$inferSelect;
+export type NewUserPreference = typeof userPreferences.$inferInsert;

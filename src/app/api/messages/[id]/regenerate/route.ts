@@ -10,6 +10,9 @@ import { createProvider } from '@/lib/ai/provider';
 import { generateMessageId } from '@/lib/utils/id';
 import { buildMessageChain, getNextVersionNumber } from '@/lib/utils/messageTree';
 import { eq } from 'drizzle-orm';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('api/messages/regenerate');
 
 // Consume stream in background and update message when complete
 async function consumeStreamInBackground(
@@ -94,7 +97,7 @@ async function consumeStreamInBackground(
       })
       .where(eq(messages.id, assistantMessageId));
 
-    console.error('Background stream consumption error:', error);
+    logger.error('Background stream consumption failed', { error: String(error) });
   }
 }
 
@@ -242,7 +245,7 @@ export async function POST(
       },
     });
   } catch (error) {
-    console.error('Regenerate message error:', error);
+    logger.error('Regenerate message failed', { error: String(error) });
     return NextResponse.json(
       { error: 'Failed to regenerate message' },
       { status: 500 }

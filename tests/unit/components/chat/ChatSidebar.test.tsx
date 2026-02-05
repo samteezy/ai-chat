@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ChatSidebar } from '@/components/chat/ChatSidebar';
+import { LogViewerProvider } from '@/components/logs';
 import { mockChats, mockEndpoints } from '@tests/helpers';
 
 // Mock next/navigation
@@ -12,6 +13,15 @@ vi.mock('next/navigation', () => ({
     refresh: mockRefresh,
   }),
 }));
+
+// Wrapper component that provides required context
+const TestWrapper = ({ children }: { children: React.ReactNode }) => (
+  <LogViewerProvider>{children}</LogViewerProvider>
+);
+
+const renderWithProviders = (ui: React.ReactElement) => {
+  return render(ui, { wrapper: TestWrapper });
+};
 
 // Mock window.confirm
 const mockConfirm = vi.fn();
@@ -26,7 +36,7 @@ describe('ChatSidebar', () => {
 
   describe('rendering', () => {
     it('renders the sidebar with header', () => {
-      render(
+      renderWithProviders(
         <ChatSidebar
           chats={mockChats}
           endpoints={mockEndpoints}
@@ -38,7 +48,7 @@ describe('ChatSidebar', () => {
     });
 
     it('renders all chats', () => {
-      render(
+      renderWithProviders(
         <ChatSidebar
           chats={mockChats}
           endpoints={mockEndpoints}
@@ -52,7 +62,7 @@ describe('ChatSidebar', () => {
     });
 
     it('renders settings link', () => {
-      render(
+      renderWithProviders(
         <ChatSidebar
           chats={mockChats}
           endpoints={mockEndpoints}
@@ -64,7 +74,7 @@ describe('ChatSidebar', () => {
     });
 
     it('renders search input', () => {
-      render(
+      renderWithProviders(
         <ChatSidebar
           chats={mockChats}
           endpoints={mockEndpoints}
@@ -84,7 +94,7 @@ describe('ChatSidebar', () => {
         json: () => Promise.resolve(searchResults),
       });
 
-      render(
+      renderWithProviders(
         <ChatSidebar
           chats={mockChats}
           endpoints={mockEndpoints}
@@ -106,7 +116,7 @@ describe('ChatSidebar', () => {
     });
 
     it('shows clear button when search has text', () => {
-      render(
+      renderWithProviders(
         <ChatSidebar
           chats={mockChats}
           endpoints={mockEndpoints}
@@ -127,7 +137,7 @@ describe('ChatSidebar', () => {
         json: () => Promise.resolve(searchResults),
       });
 
-      render(
+      renderWithProviders(
         <ChatSidebar
           chats={mockChats}
           endpoints={mockEndpoints}
@@ -158,7 +168,7 @@ describe('ChatSidebar', () => {
         json: () => Promise.resolve([]),
       });
 
-      render(
+      renderWithProviders(
         <ChatSidebar
           chats={mockChats}
           endpoints={mockEndpoints}
@@ -178,7 +188,7 @@ describe('ChatSidebar', () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       (global.fetch as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Network error'));
 
-      render(
+      renderWithProviders(
         <ChatSidebar
           chats={mockChats}
           endpoints={mockEndpoints}
@@ -199,7 +209,7 @@ describe('ChatSidebar', () => {
 
   describe('multi-select with Ctrl/Cmd+click', () => {
     it('selects a chat with Ctrl+click', () => {
-      render(
+      renderWithProviders(
         <ChatSidebar
           chats={mockChats}
           endpoints={mockEndpoints}
@@ -215,7 +225,7 @@ describe('ChatSidebar', () => {
     });
 
     it('toggles selection on subsequent Ctrl+click', () => {
-      render(
+      renderWithProviders(
         <ChatSidebar
           chats={mockChats}
           endpoints={mockEndpoints}
@@ -235,7 +245,7 @@ describe('ChatSidebar', () => {
     });
 
     it('selects multiple chats with Ctrl+click', () => {
-      render(
+      renderWithProviders(
         <ChatSidebar
           chats={mockChats}
           endpoints={mockEndpoints}
@@ -256,7 +266,7 @@ describe('ChatSidebar', () => {
 
   describe('range select with Shift+click', () => {
     it('selects a range of chats with Shift+click', () => {
-      render(
+      renderWithProviders(
         <ChatSidebar
           chats={mockChats}
           endpoints={mockEndpoints}
@@ -282,7 +292,7 @@ describe('ChatSidebar', () => {
 
   describe('selection mode behavior', () => {
     it('shows bulk delete bar when items are selected', () => {
-      render(
+      renderWithProviders(
         <ChatSidebar
           chats={mockChats}
           endpoints={mockEndpoints}
@@ -297,7 +307,7 @@ describe('ChatSidebar', () => {
     });
 
     it('updates count when selecting multiple chats', () => {
-      render(
+      renderWithProviders(
         <ChatSidebar
           chats={mockChats}
           endpoints={mockEndpoints}
@@ -315,7 +325,7 @@ describe('ChatSidebar', () => {
     });
 
     it('clears selection with Cancel button', () => {
-      render(
+      renderWithProviders(
         <ChatSidebar
           chats={mockChats}
           endpoints={mockEndpoints}
@@ -334,7 +344,7 @@ describe('ChatSidebar', () => {
     });
 
     it('clears selection with Escape key', () => {
-      render(
+      renderWithProviders(
         <ChatSidebar
           chats={mockChats}
           endpoints={mockEndpoints}
@@ -353,7 +363,7 @@ describe('ChatSidebar', () => {
     });
 
     it('toggles selection when clicking in selection mode without modifiers', () => {
-      render(
+      renderWithProviders(
         <ChatSidebar
           chats={mockChats}
           endpoints={mockEndpoints}
@@ -378,7 +388,7 @@ describe('ChatSidebar', () => {
     it('calls bulk delete API with selected IDs', async () => {
       (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true });
 
-      render(
+      renderWithProviders(
         <ChatSidebar
           chats={mockChats}
           endpoints={mockEndpoints}
@@ -404,7 +414,7 @@ describe('ChatSidebar', () => {
     });
 
     it('shows confirmation dialog before bulk delete', async () => {
-      render(
+      renderWithProviders(
         <ChatSidebar
           chats={mockChats}
           endpoints={mockEndpoints}
@@ -422,7 +432,7 @@ describe('ChatSidebar', () => {
     });
 
     it('shows plural in confirmation for multiple chats', async () => {
-      render(
+      renderWithProviders(
         <ChatSidebar
           chats={mockChats}
           endpoints={mockEndpoints}
@@ -445,7 +455,7 @@ describe('ChatSidebar', () => {
     it('does not delete if confirmation is cancelled', async () => {
       mockConfirm.mockReturnValue(false);
 
-      render(
+      renderWithProviders(
         <ChatSidebar
           chats={mockChats}
           endpoints={mockEndpoints}
@@ -465,7 +475,7 @@ describe('ChatSidebar', () => {
     it('redirects to home when deleting active chat in bulk', async () => {
       (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true });
 
-      render(
+      renderWithProviders(
         <ChatSidebar
           chats={mockChats}
           endpoints={mockEndpoints}
@@ -488,7 +498,7 @@ describe('ChatSidebar', () => {
     it('refreshes page when bulk deleting non-active chats', async () => {
       (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true });
 
-      render(
+      renderWithProviders(
         <ChatSidebar
           chats={mockChats}
           endpoints={mockEndpoints}
@@ -511,7 +521,7 @@ describe('ChatSidebar', () => {
     it('clears selection after successful bulk delete', async () => {
       (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true });
 
-      render(
+      renderWithProviders(
         <ChatSidebar
           chats={mockChats}
           endpoints={mockEndpoints}
@@ -536,7 +546,7 @@ describe('ChatSidebar', () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       (global.fetch as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Network error'));
 
-      render(
+      renderWithProviders(
         <ChatSidebar
           chats={mockChats}
           endpoints={mockEndpoints}

@@ -4,6 +4,7 @@ import {
   generateChatId,
   generateMessageId,
   generateEndpointId,
+  generateLogId,
 } from '@/lib/utils/id';
 
 describe('ID generation', () => {
@@ -46,6 +47,13 @@ describe('ID generation', () => {
     it('generates an ID with ep_ prefix', () => {
       const id = generateEndpointId();
       expect(id).toMatch(/^ep_[a-f0-9]{24}$/);
+    });
+  });
+
+  describe('generateLogId', () => {
+    it('generates an ID with log_ prefix', () => {
+      const id = generateLogId();
+      expect(id).toMatch(/^log_[a-f0-9]{24}$/);
     });
   });
 });
