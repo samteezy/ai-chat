@@ -40,7 +40,6 @@ src/
 │   ├── db/                # Database connection and schema
 │   └── utils/             # Utility functions (ID generation, message tree)
 └── types/                 # TypeScript types
-TODO.md                    # Future tasks or enhancements to do
 ```
 
 ## Development Commands

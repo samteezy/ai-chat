@@ -1,4 +1,0 @@
-- Add `sqlite-vector` implementation for better history search, memory
-- Add reusable prompt library capability
-- Add file parse capability
-- Ensure as many operations as possible happen in the backend, rather than relying on frontend
