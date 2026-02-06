@@ -1,9 +1,30 @@
 'use client';
 
 import { useState } from 'react';
-import ReactMarkdown from 'react-markdown';
+import ReactMarkdown, { Components } from 'react-markdown';
 import type { ChatUIMessageWithVersioning, VersionInfo } from '@/types';
 import { MessageControls } from './MessageControls';
+import { CodeBlock } from './CodeBlock';
+import { InlineCode } from './InlineCode';
+
+// Custom components for ReactMarkdown
+const markdownComponents: Components = {
+  code({ className, children, ...props }) {
+    // Check if this is a code block (has language class) or inline code
+    const isCodeBlock = className?.startsWith('language-');
+    const content = String(children).replace(/\n$/, '');
+
+    if (isCodeBlock) {
+      return <CodeBlock className={className}>{content}</CodeBlock>;
+    }
+
+    return <InlineCode {...props}>{children}</InlineCode>;
+  },
+  // Override pre to avoid double wrapping with CodeBlock
+  pre({ children }) {
+    return <>{children}</>;
+  },
+};
 
 interface MessageListProps {
   messages: ChatUIMessageWithVersioning[];
@@ -115,7 +136,7 @@ export function MessageList({
                         if (part.type === 'text') {
                           return (
                             <div key={index} className="prose dark:prose-invert prose-sm max-w-none">
-                              <ReactMarkdown>{(part as { type: 'text'; text: string }).text}</ReactMarkdown>
+                              <ReactMarkdown components={markdownComponents}>{(part as { type: 'text'; text: string }).text}</ReactMarkdown>
                             </div>
                           );
                         }
